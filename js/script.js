@@ -1,581 +1,902 @@
-const FLOW_URL = "COLE_AQUI_A_URL_COMPLETA_DO_POWER_AUTOMATE";
-
-const REFERENCIAS = [
-  "Manutenção corretiva (TTK)",
-  "Preventiva",
-  "Implantação de prédios",
-  "Alivio de Rede"
-];
+const FLOW_URL = "https://defaultdf1b464dc1054b6b95c1c07df632da.76.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/31529088d4724fd0919a0b87d43d4ac0/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=To9ql2vU_1BYnUpsUKIHGE73ePXOxHvssWAW18KVtBc";
 
 const state = {
-  tecnicos: [],
-  municipios: [],
-  materiaisCatalogo: [],
-  causas: [],
-  materiaisSelecionados: [],
-  payloadFinal: null,
-  tecnicoSelecionado: false,
-  municipioSelecionado: false,
-  materialSelecionado: false
+    tecnicos: [],
+    municipios: [],
+    materiaisCatalogo: [],
+    causas: [],
+    materiaisSelecionados: [],
+    payloadFinal: null,
+    loaded: false
 };
 
-const $ = (id) => document.getElementById(id);
+const REFERENCIAS_VALIDAS = [
+    "Manutenção corretiva (TTK)",
+    "Preventiva",
+    "Implantação de prédios",
+    "Alivio de Rede"
+];
 
-const el = {
-  form: $("formPrincipal"),
-  alertBox: $("alertBox"),
-  jsonOutput: $("jsonOutput"),
+const currentYear = String(new Date().getFullYear());
 
-  buscaTecnico: $("buscaTecnico"),
-  listaTecnicos: $("listaTecnicos"),
-  idTecnico: $("id_tecnico"),
-  nomeTecnico: $("nome_tecnico"),
+const alertBox = document.getElementById("alertBox");
+const materialsError = document.getElementById("materialsError");
+const materialsTableBody = document.getElementById("materialsTableBody");
 
-  buscaMunicipio: $("buscaMunicipio"),
-  listaMunicipios: $("listaMunicipios"),
-  municipio: $("municipio"),
-  uf: $("uf"),
-  eps: $("eps"),
+const tecnicoSearch = document.getElementById("tecnico_search");
+const tecnicoSuggestions = document.getElementById("tecnico_suggestions");
+const idTecnico = document.getElementById("id_tecnico");
+const nomeTecnico = document.getElementById("nome_tecnico");
+const eps = document.getElementById("eps");
 
-  referencia: $("referencia_atividade"),
-  ttk: $("ttk"),
-  causa: $("causa"),
+const municipioSearch = document.getElementById("municipio_search");
+const municipioSuggestions = document.getElementById("municipio_suggestions");
+const municipio = document.getElementById("municipio");
+const uf = document.getElementById("uf");
 
-  buscaMaterial: $("buscaMaterial"),
-  listaMateriais: $("listaMateriais"),
-  codMaterial: $("cod_material"),
-  nomeMaterial: $("nome_material"),
-  quantidade: $("quantidade"),
-  btnAdicionarMaterial: $("btnAdicionarMaterial"),
-  tbodyMateriais: $("tbodyMateriais"),
-  erroMateriais: $("erroMateriais"),
+const referenciaAtividade = document.getElementById("referencia_atividade");
+const ttk = document.getElementById("ttk");
 
-  btnGerarJson: $("btnGerarJson"),
-  btnEnviarPowerAutomate: $("btnEnviarPowerAutomate")
-};
+const causaSearch = document.getElementById("causa_search");
+const causaSuggestions = document.getElementById("causa_suggestions");
+
+const materialSearch = document.getElementById("material_search");
+const materialSuggestions = document.getElementById("material_suggestions");
+const codMaterial = document.getElementById("cod_material");
+const nomeMaterial = document.getElementById("nome_material");
+const quantidade = document.getElementById("quantidade");
+
+const addMaterialBtn = document.getElementById("addMaterialBtn");
+const generateJsonBtn = document.getElementById("generateJsonBtn");
+const sendBtn = document.getElementById("sendBtn");
+
+const successModal = document.getElementById("successModal");
+const closeSuccessModalBtn = document.getElementById("closeSuccessModal");
+const confirmSuccessModalBtn = document.getElementById("confirmSuccessModal");
+const modalBackdrop = document.getElementById("modalBackdrop");
+
+function setThemeToggle() {
+    const toggle = document.querySelector("[data-theme-toggle]");
+    const root = document.documentElement;
+    let theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+
+    root.setAttribute("data-theme", theme);
+    updateThemeIcon(toggle, theme);
+
+    toggle.addEventListener("click", () => {
+        theme = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+        root.setAttribute("data-theme", theme);
+        updateThemeIcon(toggle, theme);
+    });
+}
+
+function updateThemeIcon(toggle, theme) {
+    const icon = toggle.querySelector(".theme-icon");
+    icon.textContent = theme === "dark" ? "☾" : "☀";
+}
 
 function showAlert(message, type = "error") {
-  el.alertBox.className = `alert ${type}`;
-  el.alertBox.innerHTML = message;
-  el.alertBox.classList.remove("hidden");
+    alertBox.className = `alert ${type}`;
+    alertBox.innerHTML = message;
+    alertBox.classList.remove("hidden");
 }
 
 function hideAlert() {
-  el.alertBox.className = "alert hidden";
-  el.alertBox.innerHTML = "";
+    alertBox.classList.add("hidden");
+    alertBox.innerHTML = "";
 }
 
-function upper(value) {
-  return String(value || "").trim().toUpperCase();
+function openSuccessModal() {
+    successModal.classList.remove("hidden");
+    successModal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("modal-open");
 }
 
-function clean(value) {
-  return String(value || "").trim().replace(/\s+/g, " ");
+function closeSuccessModal() {
+    successModal.classList.add("hidden");
+    successModal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("modal-open");
 }
 
-function lockField(input, locked) {
-  input.readOnly = locked;
-  input.classList.toggle("locked", locked);
+function toUpperTrim(value) {
+    return (value || "").toString().trim().toUpperCase();
 }
 
-function parseCSV(text, delimiter = ",") {
-  const lines = text.replace(/\r/g, "").split("\n").filter(line => line.trim() !== "");
-  if (!lines.length) return [];
+function normalizeSpaces(value) {
+    return (value || "").toString().trim().replace(/\s+/g, " ");
+}
 
-  const headers = lines[0].split(delimiter).map(h => h.trim());
+function lockField(field, locked) {
+    field.readOnly = locked;
+    field.classList.toggle("locked", locked);
+}
 
-  return lines.slice(1).map(line => {
-    const values = line.split(delimiter).map(v => v.trim());
-    const row = {};
-    headers.forEach((header, index) => {
-      row[header] = values[index] || "";
+function validateField(field, isValid, message) {
+    const wrapper = field.closest(".field");
+    const errorText = wrapper ? wrapper.querySelector(".error-text") : null;
+
+    if (!isValid) {
+        wrapper?.classList.add("invalid");
+        if (errorText) {
+            errorText.textContent = message;
+        }
+    } else {
+        wrapper?.classList.remove("invalid");
+        if (errorText) {
+            errorText.textContent = "";
+        }
+    }
+
+    return isValid;
+}
+
+function parseCsvLine(line, delimiter = ";") {
+    const result = [];
+    let current = "";
+    let insideQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        const next = line[i + 1];
+
+        if (char === '"') {
+            if (insideQuotes && next === '"') {
+                current += '"';
+                i++;
+            } else {
+                insideQuotes = !insideQuotes;
+            }
+        } else if (char === delimiter && !insideQuotes) {
+            result.push(current.trim());
+            current = "";
+        } else {
+            current += char;
+        }
+    }
+
+    result.push(current.trim());
+    return result;
+}
+
+function csvToObjects(csvText, delimiter = ";") {
+    const lines = csvText
+        .replace(/\r/g, "")
+        .split("\n")
+        .map(line => line.trim())
+        .filter(Boolean);
+
+    if (!lines.length) {
+        return [];
+    }
+
+    const rawHeaders = parseCsvLine(lines[0], delimiter);
+    const headers = rawHeaders
+        .map(header => header.replace(/^\uFEFF/, "").trim())
+        .filter(header => header !== "");
+
+    return lines.slice(1).map(line => {
+        const values = parseCsvLine(line, delimiter);
+        const row = {};
+
+        headers.forEach((header, index) => {
+            row[header] = (values[index] || "").trim();
+        });
+
+        return row;
     });
-    return row;
-  });
+}
+
+async function loadCsv(path, label) {
+    try {
+        const response = await fetch(path, { cache: "no-store" });
+
+        if (!response.ok) {
+            throw new Error(`${label}: HTTP ${response.status}`);
+        }
+
+        const text = await response.text();
+        return csvToObjects(text, ";");
+    } catch (error) {
+        throw new Error(`${label}: ${error.message}`);
+    }
 }
 
 async function loadData() {
-  const [tecnicosTxt, municipiosTxt, materiaisTxt, causasTxt] = await Promise.all([
-    fetch("./data/lista_tecnicos.csv", { cache: "no-store" }).then(r => r.text()),
-    fetch("./data/municipio.csv", { cache: "no-store" }).then(r => r.text()),
-    fetch("./data/materiais.csv", { cache: "no-store" }).then(r => r.text()),
-    fetch("./data/causa.csv", { cache: "no-store" }).then(r => r.text())
-  ]);
+    const errors = [];
+    let tecnicos = [];
+    let municipios = [];
+    let materiais = [];
+    let causas = [];
 
-  state.tecnicos = parseCSV(tecnicosTxt).map(item => ({
-    cod: upper(item.cod),
-    tecnico: upper(item.tecnico)
-  }));
-
-  state.municipios = parseCSV(municipiosTxt).map(item => ({
-    municipio: upper(item.municipio),
-    uf: upper(item.uf),
-    eps: upper(item.eps)
-  }));
-
-  state.materiaisCatalogo = parseCSV(materiaisTxt).map(item => ({
-    cod_material: upper(item.cod_material),
-    nome_material: upper(item.nome_material)
-  }));
-
-  const causasLinhas = causasTxt.replace(/\r/g, "").split("\n").map(x => clean(x)).filter(Boolean);
-  state.causas = causasLinhas[0]?.toLowerCase() === "causa" ? causasLinhas.slice(1) : causasLinhas;
-
-  preencherCausas();
-}
-
-function preencherCausas() {
-  el.causa.innerHTML = `<option value="">Selecione</option>`;
-  state.causas.forEach(item => {
-    const option = document.createElement("option");
-    option.value = item;
-    option.textContent = item;
-    el.causa.appendChild(option);
-  });
-}
-
-function setFieldError(input, valid, message) {
-  const field = input.closest(".field");
-  const errorText = field?.querySelector(".error-text");
-
-  if (!valid) {
-    field?.classList.add("invalid");
-    if (errorText) errorText.textContent = message;
-  } else {
-    field?.classList.remove("invalid");
-    if (errorText) errorText.textContent = "";
-  }
-
-  return valid;
-}
-
-function maskIdTecnico() {
-  let value = upper(el.idTecnico.value).replace(/[^A-Z0-9]/g, "");
-  if (!value.startsWith("FB")) value = "FB" + value.replace(/^FB/, "");
-  value = "FB" + value.replace(/^FB/, "").replace(/\D/g, "").slice(0, 7);
-  el.idTecnico.value = value.slice(0, 9);
-}
-
-function maskTTK() {
-  const year = new Date().getFullYear();
-  let raw = upper(el.ttk.value).replace(/[^A-Z0-9/]/g, "");
-  if (!raw.startsWith("TT_")) raw = "TT_" + raw.replace(/^TT_?/, "");
-  const digits = raw.replace(/^TT_/, "").replace(/\D/g, "").slice(0, 8);
-  el.ttk.value = digits.length === 8 ? `TT_${digits}/${year}` : `TT_${digits}`;
-}
-
-function maskCodMaterial() {
-  let raw = upper(el.codMaterial.value).replace(/[^A-Z0-9-]/g, "");
-  const letters = raw.replace(/[^A-Z]/g, "").slice(0, 3);
-  const digits = raw.replace(/\D/g, "").slice(0, 15);
-  el.codMaterial.value = letters + (letters.length === 3 ? "-" : "") + digits;
-}
-
-function validateMainFields() {
-  const year = new Date().getFullYear();
-
-  const ok1 = setFieldError(el.idTecnico, /^FB\d{7}$/.test(upper(el.idTecnico.value)), "Use o formato FB0000000.");
-  const ok2 = setFieldError(el.nomeTecnico, clean(el.nomeTecnico.value).length > 0, "Nome Técnico é obrigatório.");
-  const ok3 = setFieldError(el.municipio, clean(el.municipio.value).length > 0, "Município é obrigatório.");
-  const ok4 = setFieldError(el.uf, /^[A-Z]{2}$/.test(upper(el.uf.value)), "UF deve conter 2 letras.");
-  const ok5 = setFieldError(el.eps, clean(el.eps.value).length > 0, "EPS é obrigatório.");
-  const ok6 = setFieldError(el.referencia, REFERENCIAS.includes(el.referencia.value), "Selecione a referência.");
-  const ok7 = setFieldError(el.ttk, new RegExp(`^TT_\\d{8}/${year}$`).test(upper(el.ttk.value)), `Use o formato TT_00000000/${year}.`);
-  const ok8 = setFieldError(el.causa, clean(el.causa.value).length > 0, "Selecione a causa.");
-
-  if (!state.materiaisSelecionados.length) {
-    el.erroMateriais.classList.remove("hidden");
-    el.erroMateriais.textContent = "Adicione pelo menos um material";
-  } else {
-    el.erroMateriais.classList.add("hidden");
-  }
-
-  return ok1 && ok2 && ok3 && ok4 && ok5 && ok6 && ok7 && ok8 && state.materiaisSelecionados.length > 0;
-}
-
-function validateMaterialInput() {
-  const ok1 = setFieldError(el.codMaterial, /^[A-Z]{3}-\d{15}$/.test(upper(el.codMaterial.value)), "Use o formato AAA-000000000000000.");
-  const ok2 = setFieldError(el.nomeMaterial, clean(el.nomeMaterial.value).length > 0, "Nome Material é obrigatório.");
-  const ok3 = setFieldError(el.quantidade, /^\d+$/.test(String(el.quantidade.value).trim()) && Number(el.quantidade.value) > 0, "Quantidade deve ser maior que zero.");
-  return ok1 && ok2 && ok3;
-}
-
-function renderSuggestions(container, items, onSelect, formatter) {
-  container.innerHTML = "";
-
-  if (!items.length) {
-    container.classList.add("hidden");
-    return;
-  }
-
-  items.forEach(item => {
-    const div = document.createElement("div");
-    div.className = "suggestion-item";
-    div.textContent = formatter(item);
-    div.addEventListener("click", () => {
-      onSelect(item);
-      container.classList.add("hidden");
-    });
-    container.appendChild(div);
-  });
-
-  container.classList.remove("hidden");
-}
-
-function setupAutocomplete() {
-  el.buscaTecnico.addEventListener("input", () => {
-    const q = upper(el.buscaTecnico.value);
-    if (!q) {
-      el.listaTecnicos.classList.add("hidden");
-      return;
+    try {
+        tecnicos = await loadCsv("./data/lista_tecnicos.csv", "lista_tecnicos.csv");
+    } catch (error) {
+        errors.push(error.message);
     }
 
-    const filtered = state.tecnicos.filter(item =>
-      item.cod.includes(q) || item.tecnico.includes(q)
-    ).slice(0, 20);
-
-    renderSuggestions(
-      el.listaTecnicos,
-      filtered,
-      (item) => {
-        el.idTecnico.value = item.cod;
-        el.nomeTecnico.value = item.tecnico;
-        state.tecnicoSelecionado = true;
-        lockField(el.idTecnico, true);
-        lockField(el.nomeTecnico, true);
-        validateMainFields();
-      },
-      (item) => `${item.cod} - ${item.tecnico}`
-    );
-  });
-
-  el.buscaMunicipio.addEventListener("input", () => {
-    const q = upper(el.buscaMunicipio.value);
-    if (!q) {
-      el.listaMunicipios.classList.add("hidden");
-      return;
+    try {
+        municipios = await loadCsv("./data/municipio.csv", "municipio.csv");
+    } catch (error) {
+        errors.push(error.message);
     }
 
-    const filtered = state.municipios.filter(item =>
-      item.municipio.includes(q) || item.uf.includes(q) || item.eps.includes(q)
-    ).slice(0, 20);
-
-    renderSuggestions(
-      el.listaMunicipios,
-      filtered,
-      (item) => {
-        el.municipio.value = item.municipio;
-        el.uf.value = item.uf;
-        el.eps.value = item.eps;
-        state.municipioSelecionado = true;
-        lockField(el.municipio, true);
-        lockField(el.uf, true);
-        lockField(el.eps, true);
-        validateMainFields();
-      },
-      (item) => `${item.municipio} - ${item.uf} - ${item.eps}`
-    );
-  });
-
-  el.buscaMaterial.addEventListener("input", () => {
-    const q = upper(el.buscaMaterial.value);
-    if (!q) {
-      el.listaMateriais.classList.add("hidden");
-      return;
+    try {
+        materiais = await loadCsv("./data/materiais.csv", "materiais.csv");
+    } catch (error) {
+        errors.push(error.message);
     }
 
-    const filtered = state.materiaisCatalogo.filter(item =>
-      item.cod_material.includes(q) || item.nome_material.includes(q)
-    ).slice(0, 20);
-
-    renderSuggestions(
-      el.listaMateriais,
-      filtered,
-      (item) => {
-        el.codMaterial.value = item.cod_material;
-        el.nomeMaterial.value = item.nome_material;
-        state.materialSelecionado = true;
-        lockField(el.codMaterial, true);
-        lockField(el.nomeMaterial, true);
-        validateMaterialInput();
-      },
-      (item) => `${item.cod_material} - ${item.nome_material}`
-    );
-  });
-
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest(".autocomplete")) {
-      el.listaTecnicos.classList.add("hidden");
-      el.listaMunicipios.classList.add("hidden");
-      el.listaMateriais.classList.add("hidden");
+    try {
+        causas = await loadCsv("./data/causa.csv", "causa.csv");
+    } catch (error) {
+        errors.push(error.message);
     }
-  });
 
-  el.buscaTecnico.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      state.tecnicoSelecionado = false;
-      el.buscaTecnico.value = "";
-      el.idTecnico.value = "";
-      el.nomeTecnico.value = "";
-      lockField(el.idTecnico, false);
-      lockField(el.nomeTecnico, false);
+    if (errors.length) {
+        throw new Error(errors.join("<br>"));
     }
-  });
 
-  el.buscaMunicipio.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      state.municipioSelecionado = false;
-      el.buscaMunicipio.value = "";
-      el.municipio.value = "";
-      el.uf.value = "";
-      el.eps.value = "";
-      lockField(el.municipio, false);
-      lockField(el.uf, false);
-      lockField(el.eps, false);
-    }
-  });
+    state.tecnicos = tecnicos
+        .filter(item => item.cod || item.tecnico || item.eps)
+        .map(item => ({
+            cod: toUpperTrim(item.cod),
+            tecnico: toUpperTrim(item.tecnico),
+            eps: toUpperTrim(item.eps)
+        }));
 
-  el.buscaMaterial.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      state.materialSelecionado = false;
-      el.buscaMaterial.value = "";
-      el.codMaterial.value = "";
-      el.nomeMaterial.value = "";
-      lockField(el.codMaterial, false);
-      lockField(el.nomeMaterial, false);
-    }
-  });
+    state.municipios = municipios
+        .filter(item => item.municipio || item.uf)
+        .map(item => ({
+            municipio: toUpperTrim(item.municipio),
+            uf: toUpperTrim(item.uf)
+        }));
+
+    state.materiaisCatalogo = materiais
+        .filter(item => item.cod_material || item.nome_material)
+        .map(item => ({
+            cod_material: toUpperTrim(item.cod_material),
+            nome_material: toUpperTrim(item.nome_material)
+        }));
+
+    state.causas = causas
+        .filter(item => item.causa)
+        .map(item => ({
+            causa: toUpperTrim(item.causa)
+        }));
+
+    state.loaded = true;
 }
 
-function renderMateriais() {
-  el.tbodyMateriais.innerHTML = "";
+function renderSuggestions(container, items, formatter, onSelect) {
+    container.innerHTML = "";
 
-  if (!state.materiaisSelecionados.length) {
-    el.tbodyMateriais.innerHTML = `
-      <tr class="empty-row">
-        <td colspan="4">Nenhum material adicionado.</td>
-      </tr>
-    `;
-    return;
-  }
-
-  state.materiaisSelecionados.forEach((item, index) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${item.cod_material}</td>
-      <td>${item.nome_material}</td>
-      <td>${item.quantidade}</td>
-      <td><button type="button" class="remove-btn" data-index="${index}">Remover</button></td>
-    `;
-    el.tbodyMateriais.appendChild(tr);
-  });
-
-  el.tbodyMateriais.querySelectorAll(".remove-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const idx = Number(btn.dataset.index);
-      state.materiaisSelecionados.splice(idx, 1);
-      renderMateriais();
-      validateMainFields();
-    });
-  });
-}
-
-function clearMaterialInput() {
-  el.buscaMaterial.value = "";
-  el.codMaterial.value = "";
-  el.nomeMaterial.value = "";
-  el.quantidade.value = "";
-  state.materialSelecionado = false;
-  lockField(el.codMaterial, false);
-  lockField(el.nomeMaterial, false);
-}
-
-function buildCSVAndPayload() {
-  const header = "id_tecnico;nome_tecnico;municipio;uf;eps;referencia_atividade;ttk;causa;cod_material;nome_material;quantidade";
-
-  const baseData = {
-    id_tecnico: upper(el.idTecnico.value),
-    nome_tecnico: upper(el.nomeTecnico.value),
-    municipio: upper(el.municipio.value),
-    uf: upper(el.uf.value),
-    eps: upper(el.eps.value),
-    referencia_atividade: el.referencia.value,
-    ttk: upper(el.ttk.value),
-    causa: el.causa.value
-  };
-
-  const linhas = state.materiaisSelecionados.map(item => [
-    baseData.id_tecnico,
-    baseData.nome_tecnico,
-    baseData.municipio,
-    baseData.uf,
-    baseData.eps,
-    baseData.referencia_atividade,
-    baseData.ttk,
-    baseData.causa,
-    item.cod_material,
-    item.nome_material,
-    item.quantidade
-  ].join(";"));
-
-  const contentText = [header, ...linhas].join("\n");
-  const contentBase64 = btoa(unescape(encodeURIComponent(contentText)));
-  const fileName = `BOOT_PROTHEUS_${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "")}.csv`;
-
-  state.payloadFinal = {
-    fileName,
-    contentBase64,
-    contentText,
-    mimeType: "text/csv",
-    dados: {
-      ...baseData,
-      materiais: state.materiaisSelecionados.map(item => ({
-        cod_material: item.cod_material,
-        nome_material: item.nome_material,
-        quantidade: item.quantidade
-      }))
+    if (!items.length) {
+        container.classList.add("hidden");
+        return;
     }
-  };
 
-  return state.payloadFinal;
-}
+    items.forEach(item => {
+        const div = document.createElement("div");
+        div.className = "suggestion-item";
+        div.textContent = formatter(item);
 
-function exibirJSON() {
-  const payload = buildCSVAndPayload();
-  el.jsonOutput.textContent = JSON.stringify(payload, null, 2);
-  console.log("Payload final para Power Automate:", payload);
-  return payload;
-}
+        div.addEventListener("mousedown", event => {
+            event.preventDefault();
+            onSelect(item);
+        });
 
-async function enviarParaPowerAutomate() {
-  hideAlert();
-
-  if (!validateMainFields()) {
-    showAlert("Verifique os campos obrigatórios antes de enviar.", "error");
-    return;
-  }
-
-  const payload = exibirJSON();
-
-  try {
-    el.btnEnviarPowerAutomate.disabled = true;
-    el.btnEnviarPowerAutomate.textContent = "Enviando...";
-
-    const response = await fetch(FLOW_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
+        container.appendChild(div);
     });
 
-    const resultText = await response.text();
-
-    if (!response.ok) {
-      showAlert(`Erro ao enviar para o Power Automate. Status: ${response.status}<br>${resultText || ""}`, "error");
-      return;
-    }
-
-    showAlert(`Enviado com sucesso para o Power Automate.<br>Status: ${response.status}<br>${resultText || ""}`, "success");
-  } catch (error) {
-    showAlert(`Falha ao chamar o Power Automate.<br>${error.message}`, "error");
-  } finally {
-    el.btnEnviarPowerAutomate.disabled = false;
-    el.btnEnviarPowerAutomate.textContent = "Enviar para Power Automate";
-  }
+    container.classList.remove("hidden");
 }
 
-function bindEvents() {
-  el.idTecnico.addEventListener("input", () => {
-    maskIdTecnico();
-    validateMainFields();
-  });
+function applyTecnicoMask() {
+    let value = toUpperTrim(idTecnico.value).replace(/[^A-Z0-9]/g, "");
 
-  el.nomeTecnico.addEventListener("input", () => {
-    el.nomeTecnico.value = upper(el.nomeTecnico.value);
-    validateMainFields();
-  });
+    if (!value.startsWith("FB")) {
+        value = "FB" + value.replace(/^FB/, "");
+    }
 
-  el.municipio.addEventListener("input", () => {
-    el.municipio.value = upper(el.municipio.value);
-    validateMainFields();
-  });
+    value = "FB" + value.replace(/^FB/, "").replace(/\D/g, "").slice(0, 7);
+    idTecnico.value = value.slice(0, 9);
+}
 
-  el.uf.addEventListener("input", () => {
-    el.uf.value = upper(el.uf.value).slice(0, 2);
-    validateMainFields();
-  });
+function applyTTKMask() {
+    let value = toUpperTrim(ttk.value).replace(/[^A-Z0-9/]/g, "");
 
-  el.eps.addEventListener("input", () => {
-    el.eps.value = upper(el.eps.value);
-    validateMainFields();
-  });
+    if (!value.startsWith("TT_")) {
+        value = "TT_" + value.replace(/^TT_?/, "");
+    }
 
-  el.ttk.addEventListener("input", () => {
-    maskTTK();
-    validateMainFields();
-  });
+    const afterPrefix = value.replace(/^TT_/, "");
+    const onlyDigits = afterPrefix.replace(/\D/g, "").slice(0, 8);
 
-  el.referencia.addEventListener("change", validateMainFields);
-  el.causa.addEventListener("change", validateMainFields);
+    let finalValue = `TT_${onlyDigits}`;
 
-  el.codMaterial.addEventListener("input", () => {
-    maskCodMaterial();
-    validateMaterialInput();
-  });
+    if (onlyDigits.length === 8) {
+        finalValue += `/${currentYear}`;
+    }
 
-  el.nomeMaterial.addEventListener("input", () => {
-    el.nomeMaterial.value = upper(el.nomeMaterial.value);
-    validateMaterialInput();
-  });
+    ttk.value = finalValue.slice(0, 16);
+}
 
-  el.quantidade.addEventListener("input", validateMaterialInput);
+function applyMaterialMask() {
+    let value = toUpperTrim(codMaterial.value).replace(/[^A-Z0-9-]/g, "");
+    const letters = value.replace(/[^A-Z]/g, "").slice(0, 3);
+    const numbers = value.replace(/\D/g, "").slice(0, 11);
 
-  el.btnAdicionarMaterial.addEventListener("click", () => {
+    if (letters.length > 0) {
+        codMaterial.value = letters + (letters.length === 3 ? "-" : "") + numbers;
+    } else {
+        codMaterial.value = numbers;
+    }
+}
+
+function validateTecnicoSection() {
+    const v1 = validateField(
+        idTecnico,
+        /^FB\d{7}$/.test(toUpperTrim(idTecnico.value)),
+        "Use o formato FB0000000."
+    );
+
+    const v2 = validateField(
+        nomeTecnico,
+        normalizeSpaces(nomeTecnico.value).length > 0,
+        "Nome Técnico é obrigatório."
+    );
+
+    const v3 = validateField(
+        eps,
+        normalizeSpaces(eps.value).length > 0,
+        "EPS é obrigatório."
+    );
+
+    return v1 && v2 && v3;
+}
+
+function validateMunicipioSection() {
+    const v1 = validateField(
+        municipio,
+        normalizeSpaces(municipio.value).length > 0,
+        "Município é obrigatório."
+    );
+
+    const v2 = validateField(
+        uf,
+        /^[A-Z]{2}$/.test(toUpperTrim(uf.value)),
+        "UF deve conter 2 letras."
+    );
+
+    return v1 && v2;
+}
+
+function validateAtividadeSection() {
+    const v1 = validateField(
+        referenciaAtividade,
+        REFERENCIAS_VALIDAS.includes(referenciaAtividade.value),
+        "Referência da Atividade é obrigatória."
+    );
+
+    const v2 = validateField(
+        ttk,
+        new RegExp(`^TT_\\d{8}/${currentYear}$`).test(toUpperTrim(ttk.value)),
+        `Use o formato TT_00000000/${currentYear}.`
+    );
+
+    const v3 = validateField(
+        causaSearch,
+        normalizeSpaces(causaSearch.value).length > 0,
+        "Causa é obrigatória."
+    );
+
+    return v1 && v2 && v3;
+}
+
+function validateMaterialInputs() {
+    const v1 = validateField(
+        codMaterial,
+        /^[A-Z]{3}-\d{11}$/.test(toUpperTrim(codMaterial.value)),
+        "Use o formato AAA-00000000000."
+    );
+
+    const v2 = validateField(
+        nomeMaterial,
+        normalizeSpaces(nomeMaterial.value).length > 0,
+        "Nome Material é obrigatório."
+    );
+
+    const v3 = validateField(
+        quantidade,
+        /^\d+$/.test(String(quantidade.value).trim()) && Number(quantidade.value) > 0,
+        "Quantidade deve ser maior que zero."
+    );
+
+    return v1 && v2 && v3;
+}
+
+function clearMaterialInputs() {
+    materialSearch.value = "";
+    codMaterial.value = "";
+    nomeMaterial.value = "";
+    quantidade.value = "";
+
+    lockField(codMaterial, false);
+    lockField(nomeMaterial, false);
+
+    materialSuggestions.classList.add("hidden");
+}
+
+function renderMaterialsTable() {
+    materialsTableBody.innerHTML = "";
+
+    if (!state.materiaisSelecionados.length) {
+        materialsTableBody.innerHTML = `
+            <tr class="empty-row">
+                <td colspan="4">Nenhum material adicionado.</td>
+            </tr>
+        `;
+        return;
+    }
+
+    state.materiaisSelecionados.forEach((item, index) => {
+        const tr = document.createElement("tr");
+
+        tr.innerHTML = `
+            <td>${item.cod_material}</td>
+            <td>${item.nome_material}</td>
+            <td>${item.quantidade}</td>
+            <td>
+                <button type="button" class="remove-btn" data-index="${index}">Remover</button>
+            </td>
+        `;
+
+        materialsTableBody.appendChild(tr);
+    });
+
+    const removeButtons = materialsTableBody.querySelectorAll(".remove-btn");
+
+    removeButtons.forEach(button => {
+        button.addEventListener("click", () => {
+            const index = Number(button.dataset.index);
+            state.materiaisSelecionados.splice(index, 1);
+            renderMaterialsTable();
+            validateAllSections();
+        });
+    });
+}
+
+function validateMaterialsCollection() {
+    if (!state.materiaisSelecionados.length) {
+        materialsError.classList.remove("hidden");
+        materialsError.textContent = "Adicione pelo menos um material";
+        return false;
+    }
+
+    materialsError.classList.add("hidden");
+    materialsError.textContent = "";
+    return true;
+}
+
+function validateAllSections() {
+    const tecnicoOk = validateTecnicoSection();
+    const municipioOk = validateMunicipioSection();
+    const atividadeOk = validateAtividadeSection();
+    const materialsOk = validateMaterialsCollection();
+
+    return tecnicoOk && municipioOk && atividadeOk && materialsOk;
+}
+
+function buildPayload() {
+    const baseData = {
+        id_tecnico: toUpperTrim(idTecnico.value),
+        nome_tecnico: toUpperTrim(nomeTecnico.value),
+        municipio: toUpperTrim(municipio.value),
+        uf: toUpperTrim(uf.value),
+        eps: toUpperTrim(eps.value),
+        referencia_atividade: referenciaAtividade.value,
+        ttk: toUpperTrim(ttk.value),
+        causa: toUpperTrim(causaSearch.value)
+    };
+
+    const csvHeader = [
+        "id_tecnico",
+        "nome_tecnico",
+        "municipio",
+        "uf",
+        "eps",
+        "referencia_atividade",
+        "ttk",
+        "causa",
+        "cod_material",
+        "nome_material",
+        "quantidade"
+    ];
+
+    const csvRows = state.materiaisSelecionados.map(material => {
+        return [
+            baseData.id_tecnico,
+            baseData.nome_tecnico,
+            baseData.municipio,
+            baseData.uf,
+            baseData.eps,
+            baseData.referencia_atividade,
+            baseData.ttk,
+            baseData.causa,
+            material.cod_material,
+            material.nome_material,
+            material.quantidade
+        ];
+    });
+
+    const csvText = [
+        csvHeader.join(";"),
+        ...csvRows.map(row => row.join(";"))
+    ].join("\n");
+
+    const encodedCsv = btoa(unescape(encodeURIComponent(csvText)));
+
+    const payload = {
+        fileName: `BOOT_PROTHEUS_${new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}.csv`,
+        mimeType: "text/csv",
+        contentText: csvText,
+        contentBase64: encodedCsv,
+        dados: {
+            ...baseData,
+            materiais: state.materiaisSelecionados.map(material => ({
+                cod_material: material.cod_material,
+                nome_material: material.nome_material,
+                quantidade: material.quantidade
+            }))
+        }
+    };
+
+    state.payloadFinal = payload;
+    return payload;
+}
+
+function generateJsonOnly() {
+    if (!validateAllSections()) {
+        showAlert("Verifique os campos obrigatórios antes de gerar o JSON.", "error");
+        return;
+    }
+
+    const payload = buildPayload();
+    console.log("Payload final:", payload);
+
+    showAlert(
+        `JSON gerado com sucesso.<br>Arquivo: ${payload.fileName}<br>Linhas de material: ${payload.dados.materiais.length}`,
+        "success"
+    );
+}
+
+async function sendToPowerAutomate() {
     hideAlert();
 
-    el.codMaterial.value = upper(el.codMaterial.value);
-    el.nomeMaterial.value = upper(el.nomeMaterial.value);
-
-    if (!validateMaterialInput()) return;
-
-    state.materiaisSelecionados.push({
-      cod_material: el.codMaterial.value,
-      nome_material: el.nomeMaterial.value,
-      quantidade: Number(el.quantidade.value)
-    });
-
-    clearMaterialInput();
-    renderMateriais();
-    validateMainFields();
-  });
-
-  el.btnGerarJson.addEventListener("click", () => {
-    hideAlert();
-
-    if (!validateMainFields()) {
-      showAlert("Preencha corretamente os campos obrigatórios para gerar o JSON.", "warning");
-      return;
+    if (!state.loaded) {
+        showAlert("Os arquivos CSV ainda não foram carregados.", "warning");
+        return;
     }
 
-    exibirJSON();
-    showAlert("JSON gerado com sucesso.", "success");
-  });
+    if (!validateAllSections()) {
+        showAlert("Verifique os campos obrigatórios antes de enviar.", "error");
+        return;
+    }
 
-  el.btnEnviarPowerAutomate.addEventListener("click", enviarParaPowerAutomate);
+    if (!FLOW_URL || FLOW_URL === "COLE_AQUI_A_URL_DO_POWER_AUTOMATE") {
+        showAlert("Defina a URL do Power Automate na constante FLOW_URL do script.", "warning");
+        return;
+    }
+
+    const payload = buildPayload();
+
+    try {
+        sendBtn.disabled = true;
+        sendBtn.textContent = "Enviando...";
+
+        const response = await fetch(FLOW_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const responseText = await response.text();
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status} - ${responseText}`);
+        }
+
+        showAlert(
+            `Envio realizado com sucesso.<br>Arquivo: ${payload.fileName}`,
+            "success"
+        );
+
+        openSuccessModal();
+    } catch (error) {
+        showAlert(`Erro ao enviar para o Power Automate.<br>${error.message}`, "error");
+    } finally {
+        sendBtn.disabled = false;
+        sendBtn.textContent = "Enviar para Power Automate";
+    }
 }
 
-(async function init() {
-  try {
-    await loadData();
-    setupAutocomplete();
-    bindEvents();
-    renderMateriais();
-    console.log("Técnicos carregados:", state.tecnicos);
-    console.log("Municípios carregados:", state.municipios);
-    console.log("Materiais carregados:", state.materiaisCatalogo);
-  } catch (error) {
-    console.error(error);
-    showAlert("Erro ao carregar os arquivos CSV. Verifique se a pasta /data foi publicada corretamente no GitHub Pages.", "error");
-  }
-})();
+function bindAutocomplete() {
+    tecnicoSearch.addEventListener("input", () => {
+        const query = toUpperTrim(tecnicoSearch.value);
+
+        if (!query) {
+            tecnicoSuggestions.classList.add("hidden");
+            return;
+        }
+
+        const results = state.tecnicos
+            .filter(item => item.cod.includes(query) || item.tecnico.includes(query))
+            .slice(0, 20);
+
+        renderSuggestions(
+            tecnicoSuggestions,
+            results,
+            item => `${item.cod} - ${item.tecnico}`,
+            item => {
+                idTecnico.value = item.cod;
+                nomeTecnico.value = item.tecnico;
+                eps.value = item.eps || "";
+
+                lockField(idTecnico, true);
+                lockField(nomeTecnico, true);
+
+                tecnicoSearch.value = `${item.cod} - ${item.tecnico}`;
+                tecnicoSuggestions.classList.add("hidden");
+
+                validateTecnicoSection();
+            }
+        );
+    });
+
+    municipioSearch.addEventListener("input", () => {
+        const query = toUpperTrim(municipioSearch.value);
+
+        if (!query) {
+            municipioSuggestions.classList.add("hidden");
+            return;
+        }
+
+        const results = state.municipios
+            .filter(item => item.municipio.includes(query))
+            .slice(0, 20);
+
+        renderSuggestions(
+            municipioSuggestions,
+            results,
+            item => `${item.municipio} - ${item.uf}`,
+            item => {
+                municipio.value = item.municipio;
+                uf.value = item.uf;
+
+                lockField(municipio, true);
+                lockField(uf, true);
+
+                municipioSearch.value = `${item.municipio} - ${item.uf}`;
+                municipioSuggestions.classList.add("hidden");
+
+                validateMunicipioSection();
+            }
+        );
+    });
+
+    causaSearch.addEventListener("input", () => {
+        const query = toUpperTrim(causaSearch.value);
+
+        if (!query) {
+            causaSuggestions.classList.add("hidden");
+            return;
+        }
+
+        const results = state.causas
+            .filter(item => item.causa.includes(query))
+            .slice(0, 20);
+
+        renderSuggestions(
+            causaSuggestions,
+            results,
+            item => item.causa,
+            item => {
+                causaSearch.value = item.causa;
+                causaSuggestions.classList.add("hidden");
+                validateAtividadeSection();
+            }
+        );
+    });
+
+    materialSearch.addEventListener("input", () => {
+        const query = toUpperTrim(materialSearch.value);
+
+        if (!query) {
+            materialSuggestions.classList.add("hidden");
+            return;
+        }
+
+        const results = state.materiaisCatalogo
+            .filter(item => item.cod_material.includes(query) || item.nome_material.includes(query))
+            .slice(0, 20);
+
+        renderSuggestions(
+            materialSuggestions,
+            results,
+            item => `${item.cod_material} - ${item.nome_material}`,
+            item => {
+                codMaterial.value = item.cod_material;
+                nomeMaterial.value = item.nome_material;
+
+                lockField(codMaterial, true);
+                lockField(nomeMaterial, true);
+
+                materialSearch.value = `${item.cod_material} - ${item.nome_material}`;
+                materialSuggestions.classList.add("hidden");
+
+                validateMaterialInputs();
+            }
+        );
+    });
+
+    document.addEventListener("click", event => {
+        if (!event.target.closest(".autocomplete-wrap")) {
+            tecnicoSuggestions.classList.add("hidden");
+            municipioSuggestions.classList.add("hidden");
+            causaSuggestions.classList.add("hidden");
+            materialSuggestions.classList.add("hidden");
+        }
+    });
+
+    tecnicoSearch.addEventListener("keydown", event => {
+        if (event.key === "Escape") {
+            tecnicoSearch.value = "";
+            idTecnico.value = "";
+            nomeTecnico.value = "";
+            eps.value = "";
+            lockField(idTecnico, false);
+            lockField(nomeTecnico, false);
+        }
+    });
+
+    municipioSearch.addEventListener("keydown", event => {
+        if (event.key === "Escape") {
+            municipioSearch.value = "";
+            municipio.value = "";
+            uf.value = "";
+            lockField(municipio, false);
+            lockField(uf, false);
+        }
+    });
+
+    materialSearch.addEventListener("keydown", event => {
+        if (event.key === "Escape") {
+            clearMaterialInputs();
+        }
+    });
+}
+
+function bindMasksAndValidation() {
+    idTecnico.addEventListener("input", () => {
+        applyTecnicoMask();
+        validateTecnicoSection();
+    });
+
+    nomeTecnico.addEventListener("input", () => {
+        nomeTecnico.value = toUpperTrim(nomeTecnico.value);
+        validateTecnicoSection();
+    });
+
+    eps.addEventListener("input", () => {
+        eps.value = toUpperTrim(eps.value);
+        validateTecnicoSection();
+    });
+
+    municipio.addEventListener("input", () => {
+        municipio.value = toUpperTrim(municipio.value);
+        validateMunicipioSection();
+    });
+
+    uf.addEventListener("input", () => {
+        uf.value = toUpperTrim(uf.value).slice(0, 2);
+        validateMunicipioSection();
+    });
+
+    ttk.addEventListener("input", () => {
+        applyTTKMask();
+        validateAtividadeSection();
+    });
+
+    referenciaAtividade.addEventListener("change", () => {
+        validateAtividadeSection();
+    });
+
+    causaSearch.addEventListener("input", () => {
+        causaSearch.value = toUpperTrim(causaSearch.value);
+        validateAtividadeSection();
+    });
+
+    codMaterial.addEventListener("input", () => {
+        applyMaterialMask();
+        validateMaterialInputs();
+    });
+
+    nomeMaterial.addEventListener("input", () => {
+        nomeMaterial.value = toUpperTrim(nomeMaterial.value);
+        validateMaterialInputs();
+    });
+
+    quantidade.addEventListener("input", () => {
+        validateMaterialInputs();
+    });
+}
+
+function bindMaterialActions() {
+    addMaterialBtn.addEventListener("click", () => {
+        hideAlert();
+
+        codMaterial.value = toUpperTrim(codMaterial.value);
+        nomeMaterial.value = toUpperTrim(nomeMaterial.value);
+
+        const valid = validateMaterialInputs();
+
+        if (!valid) {
+            return;
+        }
+
+        const material = {
+            cod_material: codMaterial.value,
+            nome_material: nomeMaterial.value,
+            quantidade: Number(quantidade.value)
+        };
+
+        state.materiaisSelecionados.push(material);
+
+        renderMaterialsTable();
+        clearMaterialInputs();
+        validateMaterialsCollection();
+    });
+}
+
+function bindActionButtons() {
+    generateJsonBtn.addEventListener("click", () => {
+        hideAlert();
+        generateJsonOnly();
+    });
+
+    document.getElementById("mainForm").addEventListener("submit", async event => {
+        event.preventDefault();
+        await sendToPowerAutomate();
+    });
+
+    closeSuccessModalBtn.addEventListener("click", closeSuccessModal);
+    confirmSuccessModalBtn.addEventListener("click", closeSuccessModal);
+    modalBackdrop.addEventListener("click", closeSuccessModal);
+
+    document.addEventListener("keydown", event => {
+        if (event.key === "Escape" && !successModal.classList.contains("hidden")) {
+            closeSuccessModal();
+        }
+    });
+}
+
+async function init() {
+    try {
+        setThemeToggle();
+        bindMasksAndValidation();
+        bindAutocomplete();
+        bindMaterialActions();
+        bindActionButtons();
+        renderMaterialsTable();
+
+        await loadData();
+
+        showAlert("Arquivos CSV carregados com sucesso. O sistema está pronto para uso.", "success");
+    } catch (error) {
+        showAlert(`Erro ao carregar os dados iniciais.<br>${error.message}`, "error");
+    }
+}
+
+init();
