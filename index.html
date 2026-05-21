@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOOT PROTHEUS ENVIO</title>
+    <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+    <div class="bg-image"></div>
+    <div class="bg-overlay"></div>
+
+    <main class="page-shell">
+        <section class="app-card">
+            <div class="app-header">
+                <div>
+                    <p class="eyebrow">Sistema Local</p>
+                    <h1>BOOT PROTHEUS ENVIO</h1>
+                    <p class="subtitle">Formulário HTML5 com validações, autocomplete, materiais ilimitados e geração de CSV em memória.</p>
+                </div>
+                <button type="button" class="theme-toggle" data-theme-toggle aria-label="Alternar tema">
+                    <span class="theme-icon">☾</span>
+                </button>
+            </div>
+
+            <div id="alertBox" class="alert hidden"></div>
+
+            <form id="mainForm" novalidate>
+                <div class="grid two-cols">
+                    <div class="field autocomplete-wrap">
+                        <label for="tecnico_search">Busca Técnico *</label>
+                        <input type="text" id="tecnico_search" autocomplete="off" placeholder="Digite código ou nome do técnico">
+                        <div id="tecnico_suggestions" class="suggestions hidden"></div>
+                    </div>
+
+                    <div class="field">
+                        <label for="id_tecnico">ID Técnico *</label>
+                        <input type="text" id="id_tecnico" required maxlength="9" placeholder="FB0000000">
+                        <small class="error-text"></small>
+                    </div>
+
+                    <div class="field">
+                        <label for="nome_tecnico">Nome Técnico *</label>
+                        <input type="text" id="nome_tecnico" required placeholder="Nome do técnico">
+                        <small class="error-text"></small>
+                    </div>
+
+                    <div class="field autocomplete-wrap">
+                        <label for="municipio_search">Busca Município *</label>
+                        <input type="text" id="municipio_search" autocomplete="off" placeholder="Digite município">
+                        <div id="municipio_suggestions" class="suggestions hidden"></div>
+                    </div>
+
+                    <div class="field">
+                        <label for="municipio">Município *</label>
+                        <input type="text" id="municipio" required placeholder="Município">
+                        <small class="error-text"></small>
+                    </div>
+
+                    <div class="field">
+                        <label for="uf">UF *</label>
+                        <input type="text" id="uf" required maxlength="2" placeholder="UF">
+                        <small class="error-text"></small>
+                    </div>
+
+                    <div class="field">
+                        <label for="eps">EPS *</label>
+                        <input type="text" id="eps" required placeholder="EPS">
+                        <small class="error-text"></small>
+                    </div>
+
+                    <div class="field">
+                        <label for="referencia_atividade">Referência da Atividade *</label>
+                        <select id="referencia_atividade" required>
+                            <option value="">Selecione</option>
+                            <option value="Manutenção corretiva (TTK)">Manutenção corretiva (TTK)</option>
+                            <option value="Preventiva">Preventiva</option>
+                            <option value="Implantação de prédios">Implantação de prédios</option>
+                            <option value="Alivio de Rede">Alivio de Rede</option>
+                        </select>
+                        <small class="error-text"></small>
+                    </div>
+
+                    <div class="field">
+                        <label for="ttk">TTK da Atividade *</label>
+                        <input type="text" id="ttk" required maxlength="16" placeholder="TT_00000000/2026">
+                        <small class="error-text"></small>
+                    </div>
+
+                    <div class="field autocomplete-wrap">
+                        <label for="causa_search">Causa *</label>
+                        <input type="text" id="causa_search" autocomplete="off" required placeholder="Digite a causa">
+                        <div id="causa_suggestions" class="suggestions hidden"></div>
+                        <small class="error-text"></small>
+                    </div>
+                </div>
+
+                <section class="materials-section">
+                    <div class="section-head">
+                        <div>
+                            <h2>Materiais</h2>
+                            <p>Adicione pelo menos um material.</p>
+                        </div>
+                    </div>
+
+                    <div class="material-entry grid three-cols">
+                        <div class="field autocomplete-wrap">
+                            <label for="material_search">Busca Material *</label>
+                            <input type="text" id="material_search" autocomplete="off" placeholder="Digite código ou nome do material">
+                            <div id="material_suggestions" class="suggestions hidden"></div>
+                        </div>
+
+                        <div class="field">
+                            <label for="cod_material">Código Material *</label>
+                            <input type="text" id="cod_material" maxlength="15" placeholder="AAA-00000000000">
+                            <small class="error-text"></small>
+                        </div>
+
+                        <div class="field">
+                            <label for="nome_material">Nome Material *</label>
+                            <input type="text" id="nome_material" placeholder="Nome do material">
+                            <small class="error-text"></small>
+                        </div>
+
+                        <div class="field">
+                            <label for="quantidade">Quantidade *</label>
+                            <input type="number" id="quantidade" min="1" step="1" placeholder="1">
+                            <small class="error-text"></small>
+                        </div>
+
+                        <div class="field action-field">
+                            <label>&nbsp;</label>
+                            <button type="button" id="addMaterialBtn" class="btn btn-secondary">Adicionar Material</button>
+                        </div>
+                    </div>
+
+                    <div id="materialsError" class="inline-error hidden">Adicione pelo menos um material</div>
+
+                    <div class="table-wrap">
+                        <table class="materials-table">
+                            <thead>
+                                <tr>
+                                    <th>Código Material</th>
+                                    <th>Nome Material</th>
+                                    <th>Quantidade</th>
+                                    <th>Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody id="materialsTableBody">
+                                <tr class="empty-row">
+                                    <td colspan="4">Nenhum material adicionado.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <div class="actions">
+                    <button type="button" class="btn btn-primary" id="generateJsonBtn">Gerar JSON</button>
+                </div>
+            </form>
+        </section>
+    </main>
+
+    <div id="successModal" class="modal hidden" aria-hidden="true">
+        <div class="modal-backdrop" id="modalBackdrop"></div>
+        <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="successModalTitle">
+            <button type="button" class="modal-close" id="closeSuccessModal" aria-label="Fechar popup">×</button>
+            <div class="modal-icon">{ }</div>
+            <h2 id="successModalTitle">JSON preparado com sucesso</h2>
+            <p>O payload foi montado no navegador. No próximo passo ele será enviado ao Power Automate.</p>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-primary" id="confirmSuccessModal">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="./js/script.js"></script>
+</body>
+</html>
