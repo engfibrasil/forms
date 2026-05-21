@@ -19,6 +19,7 @@ const REFERENCIAS_VALIDAS = [
 
 const currentYear = String(new Date().getFullYear());
 
+const mainForm = document.getElementById("mainForm");
 const alertBox = document.getElementById("alertBox");
 const materialsError = document.getElementById("materialsError");
 const materialsTableBody = document.getElementById("materialsTableBody");
@@ -47,7 +48,6 @@ const nomeMaterial = document.getElementById("nome_material");
 const quantidade = document.getElementById("quantidade");
 
 const addMaterialBtn = document.getElementById("addMaterialBtn");
-const generateJsonBtn = document.getElementById("generateJsonBtn");
 const sendBtn = document.getElementById("sendBtn");
 
 const successModal = document.getElementById("successModal");
@@ -98,6 +98,11 @@ function closeSuccessModal() {
     document.body.classList.remove("modal-open");
 }
 
+function closeSuccessModalAndResetScreen() {
+    closeSuccessModal();
+    resetEntireScreen();
+}
+
 function toUpperTrim(value) {
     return (value || "").toString().trim().toUpperCase();
 }
@@ -109,6 +114,17 @@ function normalizeSpaces(value) {
 function lockField(field, locked) {
     field.readOnly = locked;
     field.classList.toggle("locked", locked);
+}
+
+function clearFieldValidation(field) {
+    const wrapper = field.closest(".field");
+    const errorText = wrapper ? wrapper.querySelector(".error-text") : null;
+
+    wrapper?.classList.remove("invalid");
+
+    if (errorText) {
+        errorText.textContent = "";
+    }
 }
 
 function validateField(field, isValid, message) {
@@ -425,6 +441,10 @@ function clearMaterialInputs() {
     lockField(nomeMaterial, false);
 
     materialSuggestions.classList.add("hidden");
+
+    clearFieldValidation(codMaterial);
+    clearFieldValidation(nomeMaterial);
+    clearFieldValidation(quantidade);
 }
 
 function renderMaterialsTable() {
@@ -555,19 +575,75 @@ function buildPayload() {
     return payload;
 }
 
-function generateJsonOnly() {
-    if (!validateAllSections()) {
-        showAlert("Verifique os campos obrigatórios antes de gerar o JSON.", "error");
-        return;
-    }
+function unlockAllMainFields() {
+    lockField(idTecnico, false);
+    lockField(nomeTecnico, false);
+    lockField(municipio, false);
+    lockField(uf, false);
+    lockField(codMaterial, false);
+    lockField(nomeMaterial, false);
+}
 
-    const payload = buildPayload();
-    console.log("Payload final:", payload);
+function clearAllSuggestions() {
+    tecnicoSuggestions.classList.add("hidden");
+    municipioSuggestions.classList.add("hidden");
+    causaSuggestions.classList.add("hidden");
+    materialSuggestions.classList.add("hidden");
+}
 
-    showAlert(
-        `JSON gerado com sucesso.<br>Arquivo: ${payload.fileName}<br>Linhas de material: ${payload.dados.materiais.length}`,
-        "success"
-    );
+function clearAllValidationStates() {
+    const fields = [
+        idTecnico,
+        nomeTecnico,
+        eps,
+        municipio,
+        uf,
+        referenciaAtividade,
+        ttk,
+        causaSearch,
+        codMaterial,
+        nomeMaterial,
+        quantidade
+    ];
+
+    fields.forEach(field => clearFieldValidation(field));
+}
+
+function resetStateData() {
+    state.materiaisSelecionados = [];
+    state.payloadFinal = null;
+}
+
+function resetSearchFields() {
+    tecnicoSearch.value = "";
+    municipioSearch.value = "";
+    materialSearch.value = "";
+}
+
+function resetMainFields() {
+    idTecnico.value = "";
+    nomeTecnico.value = "";
+    eps.value = "";
+    municipio.value = "";
+    uf.value = "";
+    referenciaAtividade.value = "";
+    ttk.value = "";
+    causaSearch.value = "";
+}
+
+function resetEntireScreen() {
+    hideAlert();
+    resetSearchFields();
+    resetMainFields();
+    clearMaterialInputs();
+    unlockAllMainFields();
+    clearAllSuggestions();
+    clearAllValidationStates();
+    resetStateData();
+    renderMaterialsTable();
+    validateMaterialsCollection();
+    materialsError.classList.add("hidden");
+    mainForm.reset();
 }
 
 async function sendToPowerAutomate() {
@@ -613,7 +689,7 @@ async function sendToPowerAutomate() {
         showAlert(`Erro ao enviar para o Power Automate.<br>${error.message}`, "error");
     } finally {
         sendBtn.disabled = false;
-        sendBtn.textContent = "Enviar para Power Automate";
+        sendBtn.textContent = "Enviar";
     }
 }
 
@@ -738,10 +814,7 @@ function bindAutocomplete() {
 
     document.addEventListener("click", event => {
         if (!event.target.closest(".autocomplete-wrap")) {
-            tecnicoSuggestions.classList.add("hidden");
-            municipioSuggestions.classList.add("hidden");
-            causaSuggestions.classList.add("hidden");
-            materialSuggestions.classList.add("hidden");
+            clearAllSuggestions();
         }
     });
 
@@ -753,6 +826,7 @@ function bindAutocomplete() {
             eps.value = "";
             lockField(idTecnico, false);
             lockField(nomeTecnico, false);
+            validateTecnicoSection();
         }
     });
 
@@ -763,6 +837,7 @@ function bindAutocomplete() {
             uf.value = "";
             lockField(municipio, false);
             lockField(uf, false);
+            validateMunicipioSection();
         }
     });
 
@@ -856,23 +931,18 @@ function bindMaterialActions() {
 }
 
 function bindActionButtons() {
-    generateJsonBtn.addEventListener("click", () => {
-        hideAlert();
-        generateJsonOnly();
-    });
-
-    document.getElementById("mainForm").addEventListener("submit", async event => {
+    mainForm.addEventListener("submit", async event => {
         event.preventDefault();
         await sendToPowerAutomate();
     });
 
-    closeSuccessModalBtn.addEventListener("click", closeSuccessModal);
-    confirmSuccessModalBtn.addEventListener("click", closeSuccessModal);
-    modalBackdrop.addEventListener("click", closeSuccessModal);
+    closeSuccessModalBtn.addEventListener("click", closeSuccessModalAndResetScreen);
+    confirmSuccessModalBtn.addEventListener("click", closeSuccessModalAndResetScreen);
+    modalBackdrop.addEventListener("click", closeSuccessModalAndResetScreen);
 
     document.addEventListener("keydown", event => {
         if (event.key === "Escape" && !successModal.classList.contains("hidden")) {
-            closeSuccessModal();
+            closeSuccessModalAndResetScreen();
         }
     });
 }
