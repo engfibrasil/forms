@@ -583,11 +583,6 @@ async function sendToPowerAutomate() {
         return;
     }
 
-    if (!FLOW_URL || FLOW_URL === "COLE_AQUI_A_URL_DO_POWER_AUTOMATE") {
-        showAlert("Defina a URL do Power Automate na constante FLOW_URL do script.", "warning");
-        return;
-    }
-
     const payload = buildPayload();
 
     try {
