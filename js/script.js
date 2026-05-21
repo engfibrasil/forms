@@ -1,4 +1,4 @@
-const FLOW_URL = "https://defaultdf1b464dc1054b6b95c1c07df632da.76.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/31529088d4724fd0919a0b87d43d4ac0/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=To9ql2vU_1BYnUpsUKIHGE73ePXOxHvssWAW18KVtBc";
+const FLOW_URL = "COLE_AQUI_A_URL_COMPLETA_DO_POWER_AUTOMATE";
 
 const REFERENCIAS = [
   "Manutenção corretiva (TTK)",
@@ -13,7 +13,10 @@ const state = {
   materiaisCatalogo: [],
   causas: [],
   materiaisSelecionados: [],
-  payloadFinal: null
+  payloadFinal: null,
+  tecnicoSelecionado: false,
+  municipioSelecionado: false,
+  materialSelecionado: false
 };
 
 const $ = (id) => document.getElementById(id);
@@ -70,45 +73,53 @@ function clean(value) {
   return String(value || "").trim().replace(/\s+/g, " ");
 }
 
-function parseCSV(text) {
-  const lines = text.replace(/\r/g, "").trim().split("\n");
+function lockField(input, locked) {
+  input.readOnly = locked;
+  input.classList.toggle("locked", locked);
+}
+
+function parseCSV(text, delimiter = ",") {
+  const lines = text.replace(/\r/g, "").split("\n").filter(line => line.trim() !== "");
   if (!lines.length) return [];
-  const headers = lines[0].split(",").map(h => h.trim());
-  return lines.slice(1).filter(Boolean).map(line => {
-    const cols = line.split(",").map(c => c.trim());
-    const obj = {};
-    headers.forEach((h, i) => obj[h] = cols[i] || "");
-    return obj;
+
+  const headers = lines[0].split(delimiter).map(h => h.trim());
+
+  return lines.slice(1).map(line => {
+    const values = line.split(delimiter).map(v => v.trim());
+    const row = {};
+    headers.forEach((header, index) => {
+      row[header] = values[index] || "";
+    });
+    return row;
   });
 }
 
 async function loadData() {
   const [tecnicosTxt, municipiosTxt, materiaisTxt, causasTxt] = await Promise.all([
-    fetch("./data/lista_tecnicos.csv").then(r => r.text()),
-    fetch("./data/municipio.csv").then(r => r.text()),
-    fetch("./data/materiais.csv").then(r => r.text()),
-    fetch("./data/causa.csv").then(r => r.text())
+    fetch("./data/lista_tecnicos.csv", { cache: "no-store" }).then(r => r.text()),
+    fetch("./data/municipio.csv", { cache: "no-store" }).then(r => r.text()),
+    fetch("./data/materiais.csv", { cache: "no-store" }).then(r => r.text()),
+    fetch("./data/causa.csv", { cache: "no-store" }).then(r => r.text())
   ]);
 
-  state.tecnicos = parseCSV(tecnicosTxt).map(x => ({
-    cod: upper(x.cod),
-    tecnico: upper(x.tecnico)
+  state.tecnicos = parseCSV(tecnicosTxt).map(item => ({
+    cod: upper(item.cod),
+    tecnico: upper(item.tecnico)
   }));
 
-  state.municipios = parseCSV(municipiosTxt).map(x => ({
-    municipio: upper(x.municipio),
-    uf: upper(x.uf),
-    eps: upper(x.eps)
+  state.municipios = parseCSV(municipiosTxt).map(item => ({
+    municipio: upper(item.municipio),
+    uf: upper(item.uf),
+    eps: upper(item.eps)
   }));
 
-  state.materiaisCatalogo = parseCSV(materiaisTxt).map(x => ({
-    cod_material: upper(x.cod_material),
-    nome_material: upper(x.nome_material)
+  state.materiaisCatalogo = parseCSV(materiaisTxt).map(item => ({
+    cod_material: upper(item.cod_material),
+    nome_material: upper(item.nome_material)
   }));
 
-  const causasRaw = causasTxt.replace(/\r/g, "").trim().split("\n").map(x => x.trim()).filter(Boolean);
-  state.causas = causasRaw[0].toLowerCase() === "causa" ? causasRaw.slice(1) : causasRaw;
-  state.causas = state.causas.map(x => clean(x));
+  const causasLinhas = causasTxt.replace(/\r/g, "").split("\n").map(x => clean(x)).filter(Boolean);
+  state.causas = causasLinhas[0]?.toLowerCase() === "causa" ? causasLinhas.slice(1) : causasLinhas;
 
   preencherCausas();
 }
@@ -125,7 +136,7 @@ function preencherCausas() {
 
 function setFieldError(input, valid, message) {
   const field = input.closest(".field");
-  const errorText = field ? field.querySelector(".error-text") : null;
+  const errorText = field?.querySelector(".error-text");
 
   if (!valid) {
     field?.classList.add("invalid");
@@ -140,9 +151,7 @@ function setFieldError(input, valid, message) {
 
 function maskIdTecnico() {
   let value = upper(el.idTecnico.value).replace(/[^A-Z0-9]/g, "");
-  if (!value.startsWith("FB")) {
-    value = "FB" + value.replace(/^FB/, "");
-  }
+  if (!value.startsWith("FB")) value = "FB" + value.replace(/^FB/, "");
   value = "FB" + value.replace(/^FB/, "").replace(/\D/g, "").slice(0, 7);
   el.idTecnico.value = value.slice(0, 9);
 }
@@ -150,9 +159,7 @@ function maskIdTecnico() {
 function maskTTK() {
   const year = new Date().getFullYear();
   let raw = upper(el.ttk.value).replace(/[^A-Z0-9/]/g, "");
-  if (!raw.startsWith("TT_")) {
-    raw = "TT_" + raw.replace(/^TT_?/, "");
-  }
+  if (!raw.startsWith("TT_")) raw = "TT_" + raw.replace(/^TT_?/, "");
   const digits = raw.replace(/^TT_/, "").replace(/\D/g, "").slice(0, 8);
   el.ttk.value = digits.length === 8 ? `TT_${digits}/${year}` : `TT_${digits}`;
 }
@@ -193,8 +200,9 @@ function validateMaterialInput() {
   return ok1 && ok2 && ok3;
 }
 
-function renderSuggestions(container, items, onSelect, formatText) {
+function renderSuggestions(container, items, onSelect, formatter) {
   container.innerHTML = "";
+
   if (!items.length) {
     container.classList.add("hidden");
     return;
@@ -203,7 +211,7 @@ function renderSuggestions(container, items, onSelect, formatText) {
   items.forEach(item => {
     const div = document.createElement("div");
     div.className = "suggestion-item";
-    div.textContent = formatText(item);
+    div.textContent = formatter(item);
     div.addEventListener("click", () => {
       onSelect(item);
       container.classList.add("hidden");
@@ -217,56 +225,81 @@ function renderSuggestions(container, items, onSelect, formatText) {
 function setupAutocomplete() {
   el.buscaTecnico.addEventListener("input", () => {
     const q = upper(el.buscaTecnico.value);
-    if (!q) return el.listaTecnicos.classList.add("hidden");
+    if (!q) {
+      el.listaTecnicos.classList.add("hidden");
+      return;
+    }
 
-    const filtered = state.tecnicos.filter(x => x.cod.includes(q) || x.tecnico.includes(q)).slice(0, 20);
+    const filtered = state.tecnicos.filter(item =>
+      item.cod.includes(q) || item.tecnico.includes(q)
+    ).slice(0, 20);
+
     renderSuggestions(
       el.listaTecnicos,
       filtered,
-      item => {
+      (item) => {
         el.idTecnico.value = item.cod;
         el.nomeTecnico.value = item.tecnico;
+        state.tecnicoSelecionado = true;
+        lockField(el.idTecnico, true);
+        lockField(el.nomeTecnico, true);
+        validateMainFields();
       },
-      item => `${item.cod} - ${item.tecnico}`
+      (item) => `${item.cod} - ${item.tecnico}`
     );
   });
 
   el.buscaMunicipio.addEventListener("input", () => {
     const q = upper(el.buscaMunicipio.value);
-    if (!q) return el.listaMunicipios.classList.add("hidden");
+    if (!q) {
+      el.listaMunicipios.classList.add("hidden");
+      return;
+    }
 
-    const filtered = state.municipios.filter(x =>
-      x.municipio.includes(q) || x.uf.includes(q) || x.eps.includes(q)
+    const filtered = state.municipios.filter(item =>
+      item.municipio.includes(q) || item.uf.includes(q) || item.eps.includes(q)
     ).slice(0, 20);
 
     renderSuggestions(
       el.listaMunicipios,
       filtered,
-      item => {
+      (item) => {
         el.municipio.value = item.municipio;
         el.uf.value = item.uf;
         el.eps.value = item.eps;
+        state.municipioSelecionado = true;
+        lockField(el.municipio, true);
+        lockField(el.uf, true);
+        lockField(el.eps, true);
+        validateMainFields();
       },
-      item => `${item.municipio} - ${item.uf} - ${item.eps}`
+      (item) => `${item.municipio} - ${item.uf} - ${item.eps}`
     );
   });
 
   el.buscaMaterial.addEventListener("input", () => {
     const q = upper(el.buscaMaterial.value);
-    if (!q) return el.listaMateriais.classList.add("hidden");
+    if (!q) {
+      el.listaMateriais.classList.add("hidden");
+      return;
+    }
 
-    const filtered = state.materiaisCatalogo.filter(x =>
-      x.cod_material.includes(q) || x.nome_material.includes(q)
+    const filtered = state.materiaisCatalogo.filter(item =>
+      item.cod_material.includes(q) || item.nome_material.includes(q)
     ).slice(0, 20);
 
     renderSuggestions(
       el.listaMateriais,
       filtered,
-      item => {
+      (item) => {
         el.codMaterial.value = item.cod_material;
         el.nomeMaterial.value = item.nome_material;
+        state.materialSelecionado = true;
+        lockField(el.codMaterial, true);
+        lockField(el.nomeMaterial, true);
+        validateMaterialInput();
       },
-      item => `${item.cod_material} - ${item.nome_material}`
+      (item) => `${item.cod_material} - ${item.nome_material}`
     );
   });
 
@@ -275,6 +308,41 @@ function setupAutocomplete() {
       el.listaTecnicos.classList.add("hidden");
       el.listaMunicipios.classList.add("hidden");
       el.listaMateriais.classList.add("hidden");
+    }
+  });
+
+  el.buscaTecnico.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      state.tecnicoSelecionado = false;
+      el.buscaTecnico.value = "";
+      el.idTecnico.value = "";
+      el.nomeTecnico.value = "";
+      lockField(el.idTecnico, false);
+      lockField(el.nomeTecnico, false);
+    }
+  });
+
+  el.buscaMunicipio.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      state.municipioSelecionado = false;
+      el.buscaMunicipio.value = "";
+      el.municipio.value = "";
+      el.uf.value = "";
+      el.eps.value = "";
+      lockField(el.municipio, false);
+      lockField(el.uf, false);
+      lockField(el.eps, false);
+    }
+  });
+
+  el.buscaMaterial.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      state.materialSelecionado = false;
+      el.buscaMaterial.value = "";
+      el.codMaterial.value = "";
+      el.nomeMaterial.value = "";
+      lockField(el.codMaterial, false);
+      lockField(el.nomeMaterial, false);
     }
   });
 }
@@ -307,6 +375,7 @@ function renderMateriais() {
       const idx = Number(btn.dataset.index);
       state.materiaisSelecionados.splice(idx, 1);
       renderMateriais();
+      validateMainFields();
     });
   });
 }
@@ -316,6 +385,9 @@ function clearMaterialInput() {
   el.codMaterial.value = "";
   el.nomeMaterial.value = "";
   el.quantidade.value = "";
+  state.materialSelecionado = false;
+  lockField(el.codMaterial, false);
+  lockField(el.nomeMaterial, false);
 }
 
 function buildCSVAndPayload() {
@@ -348,7 +420,7 @@ function buildCSVAndPayload() {
 
   const contentText = [header, ...linhas].join("\n");
   const contentBase64 = btoa(unescape(encodeURIComponent(contentText)));
-  const fileName = `BOOT_PROTHEUS_${new Date().toISOString().slice(0,19).replace(/[-:T]/g, "")}.csv`;
+  const fileName = `BOOT_PROTHEUS_${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "")}.csv`;
 
   state.payloadFinal = {
     fileName,
@@ -397,12 +469,7 @@ async function enviarParaPowerAutomate() {
       body: JSON.stringify(payload)
     });
 
-    let resultText = "";
-    try {
-      resultText = await response.text();
-    } catch {
-      resultText = "";
-    }
+    const resultText = await response.text();
 
     if (!response.ok) {
       showAlert(`Erro ao enviar para o Power Automate. Status: ${response.status}<br>${resultText || ""}`, "error");
@@ -485,10 +552,12 @@ function bindEvents() {
 
   el.btnGerarJson.addEventListener("click", () => {
     hideAlert();
+
     if (!validateMainFields()) {
       showAlert("Preencha corretamente os campos obrigatórios para gerar o JSON.", "warning");
       return;
     }
+
     exibirJSON();
     showAlert("JSON gerado com sucesso.", "success");
   });
@@ -502,8 +571,11 @@ function bindEvents() {
     setupAutocomplete();
     bindEvents();
     renderMateriais();
+    console.log("Técnicos carregados:", state.tecnicos);
+    console.log("Municípios carregados:", state.municipios);
+    console.log("Materiais carregados:", state.materiaisCatalogo);
   } catch (error) {
-    showAlert("Erro ao carregar os arquivos CSV. Verifique se a pasta /data foi publicada corretamente no GitHub Pages.", "error");
     console.error(error);
+    showAlert("Erro ao carregar os arquivos CSV. Verifique se a pasta /data foi publicada corretamente no GitHub Pages.", "error");
   }
 })();
