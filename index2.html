@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadastro de Atividades</title>
+    <link rel="stylesheet" href="./css/style.css">
+</head>
+<body data-page-mode="seletor">
+    <div class="bg-image"></div>
+    <div class="bg-overlay"></div>
+
+    <main class="page-shell">
+        <section class="app-card">
+            <header class="app-header">
+                <div>
+                    <p class="eyebrow">Sistema Local</p>
+                    <h1>Cadastro de Atividades</h1>
+                    <p class="subtitle">Escolha o tipo de cadastro para liberar o formulário de envio.</p>
+                </div>
+
+                <button type="button" class="theme-toggle" data-theme-toggle aria-label="Alternar tema">
+                    <span class="theme-icon">☾</span>
+                </button>
+            </header>
+
+            <div id="alertBox" class="alert hidden"></div>
+
+            <form id="mainForm" novalidate>
+                <section class="mode-switch-card">
+                    <div class="section-head compact">
+                        <h2>Tipo de Cadastro</h2>
+                        <p>Escolha uma opção para continuar.</p>
+                    </div>
+
+                    <div class="mode-switch" role="radiogroup" aria-label="Tipo de cadastro">
+                        <label class="mode-option">
+                            <input type="radio" name="tipo_cadastro" value="cadastro_materiais">
+                            <span>Cadastro de Materiais</span>
+                        </label>
+
+                        <label class="mode-option">
+                            <input type="radio" name="tipo_cadastro" value="casa_cliente">
+                            <span>Casa Cliente</span>
+                        </label>
+                    </div>
+                </section>
+
+                <div id="formContent" class="hidden">
+                    <div class="grid two-cols">
+                        <div class="field autocomplete-wrap">
+                            <label for="tecnico_search">Busca Técnico *</label>
+                            <input type="text" id="tecnico_search" autocomplete="off" placeholder="Digite código ou nome do técnico">
+                            <div id="tecnico_suggestions" class="suggestions hidden"></div>
+                        </div>
+
+                        <div class="field">
+                            <label for="id_tecnico">ID Técnico *</label>
+                            <input type="text" id="id_tecnico" maxlength="9" placeholder="FB0000000">
+                            <small class="error-text"></small>
+                        </div>
+
+                        <div class="field">
+                            <label for="nome_tecnico">Nome Técnico *</label>
+                            <input type="text" id="nome_tecnico" placeholder="Nome do técnico">
+                            <small class="error-text"></small>
+                        </div>
+
+                        <div class="field">
+                            <label for="eps">EPS *</label>
+                            <input type="text" id="eps" placeholder="EPS">
+                            <small class="error-text"></small>
+                        </div>
+
+                        <div class="field autocomplete-wrap">
+                            <label for="municipio_search">Busca Município *</label>
+                            <input type="text" id="municipio_search" autocomplete="off" placeholder="Digite o município">
+                            <div id="municipio_suggestions" class="suggestions hidden"></div>
+                        </div>
+
+                        <div class="field">
+                            <label for="municipio">Município *</label>
+                            <input type="text" id="municipio" placeholder="Município">
+                            <small class="error-text"></small>
+                        </div>
+
+                        <div class="field">
+                            <label for="uf">UF *</label>
+                            <input type="text" id="uf" maxlength="2" placeholder="UF">
+                            <small class="error-text"></small>
+                        </div>
+
+                        <div class="field">
+                            <label for="referencia_atividade">Referência da Atividade *</label>
+                            <select id="referencia_atividade">
+                                <option value="">Selecione</option>
+                                <option value="Manutenção corretiva (TTK)">Manutenção corretiva (TTK)</option>
+                                <option value="Preventiva">Preventiva</option>
+                                <option value="Implantação de prédios">Implantação de prédios</option>
+                                <option value="Alivio de Rede">Alivio de Rede</option>
+                            </select>
+                            <small class="error-text"></small>
+                        </div>
+
+                        <div class="field" id="atividadeField">
+                            <label for="ttk" id="atividadeLabel">TTK da Atividade *</label>
+                            <input type="text" id="ttk" maxlength="60" placeholder="Digite a atividade">
+                            <small class="error-text"></small>
+                        </div>
+
+                        <div class="field autocomplete-wrap">
+                            <label for="causa_search">Causa *</label>
+                            <input type="text" id="causa_search" autocomplete="off" placeholder="Digite ou selecione a causa">
+                            <div id="causa_suggestions" class="suggestions hidden"></div>
+                            <small class="error-text"></small>
+                        </div>
+                    </div>
+
+                    <section class="materials-section">
+                        <div class="section-head">
+                            <h2>Materiais</h2>
+                            <p>Adicione pelo menos um material. É permitido incluir materiais ilimitados.</p>
+                        </div>
+
+                        <div class="grid three-cols">
+                            <div class="field autocomplete-wrap">
+                                <label for="material_search">Busca Material *</label>
+                                <input type="text" id="material_search" autocomplete="off" placeholder="Digite código ou nome do material">
+                                <div id="material_suggestions" class="suggestions hidden"></div>
+                            </div>
+
+                            <div class="field">
+                                <label for="cod_material">Código Material *</label>
+                                <input type="text" id="cod_material" maxlength="15" placeholder="AAA-00000000000">
+                                <small class="error-text"></small>
+                            </div>
+
+                            <div class="field">
+                                <label for="nome_material">Nome Material *</label>
+                                <input type="text" id="nome_material" placeholder="Nome do material">
+                                <small class="error-text"></small>
+                            </div>
+
+                            <div class="field">
+                                <label for="quantidade">Quantidade *</label>
+                                <input type="number" id="quantidade" min="1" step="1" placeholder="1">
+                                <small class="error-text"></small>
+                            </div>
+
+                            <div class="field action-field">
+                                <label>&nbsp;</label>
+                                <button type="button" id="addMaterialBtn" class="btn btn-secondary">Adicionar Material</button>
+                            </div>
+                        </div>
+
+                        <div id="materialsError" class="inline-error hidden">Adicione pelo menos um material.</div>
+
+                        <div class="table-wrap">
+                            <table class="materials-table">
+                                <thead>
+                                    <tr>
+                                        <th>Código Material</th>
+                                        <th>Nome Material</th>
+                                        <th>Quantidade</th>
+                                        <th>Ação</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="materialsTableBody">
+                                    <tr class="empty-row">
+                                        <td colspan="4">Nenhum material adicionado.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <div class="actions">
+                        <button type="submit" id="sendBtn" class="btn btn-primary">Enviar</button>
+                    </div>
+                </div>
+            </form>
+        </section>
+    </main>
+
+    <div id="successModal" class="modal hidden" aria-hidden="true">
+        <div id="modalBackdrop" class="modal-backdrop"></div>
+        <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="successModalTitle">
+            <button type="button" id="closeSuccessModal" class="modal-close" aria-label="Fechar">×</button>
+            <div class="modal-icon">✓</div>
+            <h2 id="successModalTitle">Envio concluído</h2>
+            <p>O formulário foi processado e enviado com sucesso para o Power Automate.</p>
+            <div class="modal-actions">
+                <button type="button" id="confirmSuccessModal" class="btn btn-primary">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="./js/script.js"></script>
+</body>
+</html>
