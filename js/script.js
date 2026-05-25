@@ -18,11 +18,14 @@ const REFERENCIAS_VALIDAS = [
 ];
 
 const currentYear = String(new Date().getFullYear());
+const pageMode = document.body.dataset.pageMode || "materiais";
 
 const mainForm = document.getElementById("mainForm");
 const alertBox = document.getElementById("alertBox");
 const materialsError = document.getElementById("materialsError");
 const materialsTableBody = document.getElementById("materialsTableBody");
+const formContent = document.getElementById("formContent");
+const atividadeLabel = document.getElementById("atividadeLabel");
 
 const tecnicoSearch = document.getElementById("tecnico_search");
 const tecnicoSuggestions = document.getElementById("tecnico_suggestions");
@@ -63,36 +66,45 @@ function setThemeToggle() {
   root.setAttribute("data-theme", theme);
   updateThemeIcon(toggle, theme);
 
-  toggle.addEventListener("click", () => {
-    theme = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
-    root.setAttribute("data-theme", theme);
-    updateThemeIcon(toggle, theme);
-  });
+  if (toggle) {
+    toggle.addEventListener("click", () => {
+      theme = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+      root.setAttribute("data-theme", theme);
+      updateThemeIcon(toggle, theme);
+    });
+  }
 }
 
 function updateThemeIcon(toggle, theme) {
+  if (!toggle) return;
   const icon = toggle.querySelector(".theme-icon");
-  icon.textContent = theme === "dark" ? "☀" : "☾";
+  if (icon) {
+    icon.textContent = theme === "dark" ? "☀" : "☾";
+  }
 }
 
 function showAlert(message, type = "error") {
+  if (!alertBox) return;
   alertBox.className = `alert ${type}`;
   alertBox.innerHTML = message;
   alertBox.classList.remove("hidden");
 }
 
 function hideAlert() {
+  if (!alertBox) return;
   alertBox.classList.add("hidden");
   alertBox.innerHTML = "";
 }
 
 function openSuccessModal() {
+  if (!successModal) return;
   successModal.classList.remove("hidden");
   successModal.setAttribute("aria-hidden", "false");
   document.body.classList.add("modal-open");
 }
 
 function closeSuccessModal() {
+  if (!successModal) return;
   successModal.classList.add("hidden");
   successModal.setAttribute("aria-hidden", "true");
   document.body.classList.remove("modal-open");
@@ -111,12 +123,22 @@ function normalizeSpaces(value) {
   return (value || "").toString().trim().replace(/\s+/g, " ");
 }
 
+function csvEscape(value) {
+  const text = String(value ?? "");
+  if (/[";\r\n,]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
 function lockField(field, locked) {
+  if (!field) return;
   field.readOnly = locked;
   field.classList.toggle("locked", locked);
 }
 
 function clearFieldValidation(field) {
+  if (!field) return;
   const wrapper = field.closest(".field");
   const errorText = wrapper ? wrapper.querySelector(".error-text") : null;
 
@@ -128,6 +150,8 @@ function clearFieldValidation(field) {
 }
 
 function validateField(field, isValid, message) {
+  if (!field) return isValid;
+
   const wrapper = field.closest(".field");
   const errorText = wrapper ? wrapper.querySelector(".error-text") : null;
 
@@ -284,6 +308,8 @@ async function loadData() {
 }
 
 function renderSuggestions(container, items, formatter, onSelect) {
+  if (!container) return;
+
   container.innerHTML = "";
 
   if (!items.length) {
@@ -307,26 +333,58 @@ function renderSuggestions(container, items, formatter, onSelect) {
 
 function applyTecnicoMask() {
   let value = toUpperTrim(idTecnico.value).replace(/[^A-Z0-9]/g, "");
-
   if (!value.startsWith("FB")) {
     value = "FB" + value.replace(/^FB/, "");
   }
-
   value = "FB" + value.replace(/^FB/, "").replace(/\D/g, "").slice(0, 7);
   idTecnico.value = value.slice(0, 9);
 }
 
-function applyTTKMask() {
-  let value = toUpperTrim(ttk.value).replace(/[^A-Z0-9/]/g, "");
+function getSelectedTipoCadastro() {
+  const checked = document.querySelector('input[name="tipo_cadastro"]:checked');
+  if (pageMode === "materiais") return "cadastro_materiais";
+  return checked ? checked.value : "";
+}
 
+function isCasaCliente() {
+  return getSelectedTipoCadastro() === "casa_cliente";
+}
+
+function updateAtividadeMode() {
+  if (!atividadeLabel || !ttk) return;
+
+  if (isCasaCliente()) {
+    atividadeLabel.textContent = "Designador da Atividade *";
+    ttk.placeholder = "Digite o designador da atividade";
+    ttk.maxLength = 120;
+  } else {
+    atividadeLabel.textContent = "TTK da Atividade *";
+    ttk.placeholder = `TT_00000000/${currentYear}`;
+    ttk.maxLength = 16;
+  }
+}
+
+function getActivityFieldValue() {
+  return normalizeSpaces(ttk.value);
+}
+
+function applyActivityMaskIfNeeded() {
+  if (!ttk) return;
+
+  if (isCasaCliente()) {
+    ttk.value = normalizeSpaces(ttk.value).toUpperCase();
+    return;
+  }
+
+  let value = toUpperTrim(ttk.value).replace(/[^A-Z0-9_/]/g, "");
   if (!value.startsWith("TT_")) {
     value = "TT_" + value.replace(/^TT_?/, "");
   }
 
   const afterPrefix = value.replace(/^TT_/, "");
   const onlyDigits = afterPrefix.replace(/\D/g, "").slice(0, 8);
-  let finalValue = `TT_${onlyDigits}`;
 
+  let finalValue = `TT_${onlyDigits}`;
   if (onlyDigits.length === 8) {
     finalValue += `/${currentYear}`;
   }
@@ -347,15 +405,37 @@ function applyMaterialMask() {
 }
 
 function validateTecnicoSection() {
-  const v1 = validateField(idTecnico, /^FB\d{7}$/.test(toUpperTrim(idTecnico.value)), "Use o formato FB0000000.");
-  const v2 = validateField(nomeTecnico, normalizeSpaces(nomeTecnico.value).length > 0, "Nome Técnico é obrigatório.");
-  const v3 = validateField(eps, normalizeSpaces(eps.value).length > 0, "EPS é obrigatório.");
+  const v1 = validateField(
+    idTecnico,
+    /^FB\d{7}$/.test(toUpperTrim(idTecnico.value)),
+    "Use o formato FB0000000."
+  );
+  const v2 = validateField(
+    nomeTecnico,
+    normalizeSpaces(nomeTecnico.value).length > 0,
+    "Nome Técnico é obrigatório."
+  );
+  const v3 = validateField(
+    eps,
+    normalizeSpaces(eps.value).length > 0,
+    "EPS é obrigatório."
+  );
+
   return v1 && v2 && v3;
 }
 
 function validateMunicipioSection() {
-  const v1 = validateField(municipio, normalizeSpaces(municipio.value).length > 0, "Município é obrigatório.");
-  const v2 = validateField(uf, /^[A-Z]{2}$/.test(toUpperTrim(uf.value)), "UF deve conter 2 letras.");
+  const v1 = validateField(
+    municipio,
+    normalizeSpaces(municipio.value).length > 0,
+    "Município é obrigatório."
+  );
+  const v2 = validateField(
+    uf,
+    /^[A-Z]{2}$/.test(toUpperTrim(uf.value)),
+    "UF deve conter 2 letras."
+  );
+
   return v1 && v2;
 }
 
@@ -366,20 +446,37 @@ function validateAtividadeSection() {
     "Referência da Atividade é obrigatória."
   );
 
-  const v2 = validateField(
-    ttk,
-    new RegExp(`^TT_\\d{8}/${currentYear}$`).test(toUpperTrim(ttk.value)),
-    `Use o formato TT_00000000/${currentYear}.`
-  );
+  const atividadeValor = getActivityFieldValue();
+  const atividadeValida = isCasaCliente()
+    ? atividadeValor.length > 0
+    : new RegExp(`^TT_\\d{8}/${currentYear}$`).test(toUpperTrim(ttk.value));
 
-  const v3 = validateField(causaSearch, normalizeSpaces(causaSearch.value).length > 0, "Causa é obrigatória.");
+  const atividadeMensagem = isCasaCliente()
+    ? "Designador da atividade é obrigatório."
+    : `Use o formato TT_00000000/${currentYear}.`;
+
+  const v2 = validateField(ttk, atividadeValida, atividadeMensagem);
+
+  const v3 = validateField(
+    causaSearch,
+    normalizeSpaces(causaSearch.value).length > 0,
+    "Causa é obrigatória."
+  );
 
   return v1 && v2 && v3;
 }
 
 function validateMaterialInputs() {
-  const v1 = validateField(codMaterial, /^[A-Z]{3}-\d{11}$/.test(toUpperTrim(codMaterial.value)), "Use o formato AAA-00000000000.");
-  const v2 = validateField(nomeMaterial, normalizeSpaces(nomeMaterial.value).length > 0, "Nome Material é obrigatório.");
+  const v1 = validateField(
+    codMaterial,
+    /^[A-Z]{3}-\d{11}$/.test(toUpperTrim(codMaterial.value)),
+    "Use o formato AAA-00000000000."
+  );
+  const v2 = validateField(
+    nomeMaterial,
+    normalizeSpaces(nomeMaterial.value).length > 0,
+    "Nome Material é obrigatório."
+  );
   const v3 = validateField(
     quantidade,
     /^\d+$/.test(String(quantidade.value).trim()) && Number(quantidade.value) > 0,
@@ -396,13 +493,14 @@ function clearMaterialInputs() {
   quantidade.value = "";
   lockField(codMaterial, false);
   lockField(nomeMaterial, false);
-  materialSuggestions.classList.add("hidden");
+  if (materialSuggestions) materialSuggestions.classList.add("hidden");
   clearFieldValidation(codMaterial);
   clearFieldValidation(nomeMaterial);
   clearFieldValidation(quantidade);
 }
 
 function renderMaterialsTable() {
+  if (!materialsTableBody) return;
   materialsTableBody.innerHTML = "";
 
   if (!state.materiaisSelecionados.length) {
@@ -425,8 +523,7 @@ function renderMaterialsTable() {
     materialsTableBody.appendChild(tr);
   });
 
-  const removeButtons = materialsTableBody.querySelectorAll(".remove-btn");
-  removeButtons.forEach(button => {
+  materialsTableBody.querySelectorAll(".remove-btn").forEach(button => {
     button.addEventListener("click", () => {
       const index = Number(button.dataset.index);
       state.materiaisSelecionados.splice(index, 1);
@@ -437,6 +534,8 @@ function renderMaterialsTable() {
 }
 
 function validateMaterialsCollection() {
+  if (!materialsError) return true;
+
   if (!state.materiaisSelecionados.length) {
     materialsError.classList.remove("hidden");
     materialsError.textContent = "Adicione pelo menos um material.";
@@ -448,16 +547,28 @@ function validateMaterialsCollection() {
   return true;
 }
 
+function validateTipoCadastroIfNeeded() {
+  if (pageMode !== "seletor") return true;
+
+  const selected = getSelectedTipoCadastro();
+  if (!selected) {
+    showAlert("Selecione o tipo de cadastro para continuar.", "warning");
+    return false;
+  }
+
+  hideAlert();
+  return true;
+}
+
 function validateAllSections() {
   const tecnicoOk = validateTecnicoSection();
   const municipioOk = validateMunicipioSection();
   const atividadeOk = validateAtividadeSection();
   const materialsOk = validateMaterialsCollection();
-
   return tecnicoOk && municipioOk && atividadeOk && materialsOk;
 }
 
-function formatDateTimeForPayload(date = new Date()) {
+function formatDateTimeInfo(date = new Date()) {
   const pad = value => String(value).padStart(2, "0");
   const dia = pad(date.getDate());
   const mes = pad(date.getMonth() + 1);
@@ -465,70 +576,98 @@ function formatDateTimeForPayload(date = new Date()) {
   const hora = pad(date.getHours());
   const minuto = pad(date.getMinutes());
   const segundo = pad(date.getSeconds());
-  return `${dia}/${mes}/${ano} ${hora}:${minuto}:${segundo}`;
+
+  return {
+    iso: date.toISOString(),
+    br: `${dia}/${mes}/${ano} ${hora}:${minuto}:${segundo}`,
+    stamp: `${ano}${mes}${dia}_${hora}${minuto}${segundo}`
+  };
 }
 
-function buildPayload() {
-  const dataHoraEnvio = formatDateTimeForPayload(new Date());
-
-  const baseData = {
-    id_tecnico: toUpperTrim(idTecnico.value),
-    nome_tecnico: toUpperTrim(nomeTecnico.value),
-    municipio: toUpperTrim(municipio.value),
-    uf: toUpperTrim(uf.value),
-    eps: toUpperTrim(eps.value),
-    referencia_atividade: referenciaAtividade.value,
-    ttk: toUpperTrim(ttk.value),
-    causa: toUpperTrim(causaSearch.value),
-    datahoradoenvio: dataHoraEnvio
-  };
-
-  const csvHeader = [
+function buildCsvContent(payloadData) {
+  const header = [
+    "tipo_cadastro",
     "id_tecnico",
     "nome_tecnico",
     "municipio",
     "uf",
     "eps",
     "referencia_atividade",
-    "ttk",
+    "atividade",
+    "ttk_atividade",
+    "designador_atividade",
     "causa",
+    "data_hora_envio_iso",
+    "data_hora_envio_br",
     "cod_material",
     "nome_material",
     "quantidade"
   ];
 
-  const csvRows = state.materiaisSelecionados.map(material => [
-    baseData.id_tecnico,
-    baseData.nome_tecnico,
-    baseData.municipio,
-    baseData.uf,
-    baseData.eps,
-    baseData.referencia_atividade,
-    baseData.ttk,
-    baseData.causa,
+  const rows = payloadData.materiais.map(material => [
+    payloadData.tipo_cadastro,
+    payloadData.id_tecnico,
+    payloadData.nome_tecnico,
+    payloadData.municipio,
+    payloadData.uf,
+    payloadData.eps,
+    payloadData.referencia_atividade,
+    payloadData.atividade,
+    payloadData.ttk_atividade ?? "",
+    payloadData.designador_atividade ?? "",
+    payloadData.causa,
+    payloadData.data_hora_envio_iso,
+    payloadData.data_hora_envio_br,
     material.cod_material,
     material.nome_material,
     material.quantidade
   ]);
 
-  const csvText = [csvHeader.join(";"), ...csvRows.map(row => row.join(";"))].join("\n");
-  const encodedCsv = btoa(unescape(encodeURIComponent(csvText)));
+  return [header, ...rows]
+    .map(row => row.map(csvEscape).join(";"))
+    .join("\r\n");
+}
 
-  const payload = {
-    fileName: `BOOTPROTHEUS_${new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}.csv`,
-    mimeType: "text/csv",
-    contentText: csvText,
-    contentBase64: encodedCsv,
-    datahoradoenvio: dataHoraEnvio,
-    dados: {
-      ...baseData
-    },
+function buildPayload() {
+  const selectedTipoCadastro = getSelectedTipoCadastro();
+  const dataHora = formatDateTimeInfo(new Date());
+  const atividade = getActivityFieldValue();
+
+  const payloadData = {
+    tipo_cadastro: String(selectedTipoCadastro || ""),
+    id_tecnico: String(toUpperTrim(idTecnico.value)),
+    nome_tecnico: String(toUpperTrim(nomeTecnico.value)),
+    municipio: String(toUpperTrim(municipio.value)),
+    uf: String(toUpperTrim(uf.value)),
+    eps: String(toUpperTrim(eps.value)),
+    referencia_atividade: String(referenciaAtividade.value || ""),
+    atividade: String(atividade || ""),
+    ttk_atividade: String(isCasaCliente() ? "" : (atividade || "")),
+    designador_atividade: String(isCasaCliente() ? (atividade || "") : ""),
+    causa: String(toUpperTrim(causaSearch.value)),
+    data_hora_envio_iso: String(dataHora.iso || ""),
+    data_hora_envio_br: String(dataHora.br || ""),
     materiais: state.materiaisSelecionados.map(material => ({
-      cod_material: material.cod_material,
-      nome_material: material.nome_material,
-      quantidade: material.quantidade
+      cod_material: String(material.cod_material || ""),
+      nome_material: String(material.nome_material || ""),
+      quantidade: Number(material.quantidade || 0)
     }))
   };
+
+  const csvText = buildCsvContent(payloadData);
+
+  const payload = {
+    fileName: `BOOT_PROTHEUS_${dataHora.stamp}.csv`,
+    mimeType: "text/csv",
+    contentText: String(csvText || ""),
+    contentBase64: btoa(unescape(encodeURIComponent(String(csvText || "")))),
+    data: payloadData,
+    dados: payloadData
+  };
+
+  console.log("payload enviado", payload);
+  console.log("contentText completo", payload.contentText);
+  console.log("materiais enviados", payload.data.materiais);
 
   state.payloadFinal = payload;
   return payload;
@@ -544,14 +683,14 @@ function unlockAllMainFields() {
 }
 
 function clearAllSuggestions() {
-  tecnicoSuggestions.classList.add("hidden");
-  municipioSuggestions.classList.add("hidden");
-  causaSuggestions.classList.add("hidden");
-  materialSuggestions.classList.add("hidden");
+  if (tecnicoSuggestions) tecnicoSuggestions.classList.add("hidden");
+  if (municipioSuggestions) municipioSuggestions.classList.add("hidden");
+  if (causaSuggestions) causaSuggestions.classList.add("hidden");
+  if (materialSuggestions) materialSuggestions.classList.add("hidden");
 }
 
 function clearAllValidationStates() {
-  const fields = [
+  [
     idTecnico,
     nomeTecnico,
     eps,
@@ -563,9 +702,7 @@ function clearAllValidationStates() {
     codMaterial,
     nomeMaterial,
     quantidade
-  ];
-
-  fields.forEach(field => clearFieldValidation(field));
+  ].forEach(field => clearFieldValidation(field));
 }
 
 function resetStateData() {
@@ -574,9 +711,9 @@ function resetStateData() {
 }
 
 function resetSearchFields() {
-  tecnicoSearch.value = "";
-  municipioSearch.value = "";
-  materialSearch.value = "";
+  if (tecnicoSearch) tecnicoSearch.value = "";
+  if (municipioSearch) municipioSearch.value = "";
+  if (materialSearch) materialSearch.value = "";
 }
 
 function resetMainFields() {
@@ -601,8 +738,16 @@ function resetEntireScreen() {
   resetStateData();
   renderMaterialsTable();
   validateMaterialsCollection();
-  materialsError.classList.add("hidden");
-  mainForm.reset();
+
+  if (pageMode === "seletor") {
+    document.querySelectorAll('input[name="tipo_cadastro"]').forEach(radio => {
+      radio.checked = false;
+    });
+    if (formContent) formContent.classList.add("hidden");
+  }
+
+  if (mainForm) mainForm.reset();
+  updateAtividadeMode();
 }
 
 async function sendToPowerAutomate() {
@@ -613,12 +758,19 @@ async function sendToPowerAutomate() {
     return;
   }
 
+  if (!validateTipoCadastroIfNeeded()) return;
+
   if (!validateAllSections()) {
     showAlert("Verifique os campos obrigatórios antes de enviar.", "error");
     return;
   }
 
   const payload = buildPayload();
+
+  if (!payload.data.materiais.length) {
+    showAlert("Nenhum material foi enviado no payload.", "error");
+    return;
+  }
 
   try {
     sendBtn.disabled = true;
@@ -638,7 +790,6 @@ async function sendToPowerAutomate() {
       throw new Error(`HTTP ${response.status} - ${responseText}`);
     }
 
-    showAlert(`Envio realizado com sucesso.<br>Arquivo: ${payload.fileName}`, "success");
     openSuccessModal();
   } catch (error) {
     showAlert(`Erro ao enviar para o Power Automate.<br>${error.message}`, "error");
@@ -649,23 +800,16 @@ async function sendToPowerAutomate() {
 }
 
 function bindAutocomplete() {
-  tecnicoSearch.addEventListener("input", () => {
-    const query = toUpperTrim(tecnicoSearch.value);
+  if (tecnicoSearch) {
+    tecnicoSearch.addEventListener("input", () => {
+      const query = toUpperTrim(tecnicoSearch.value);
+      if (!query) return tecnicoSuggestions.classList.add("hidden");
 
-    if (!query) {
-      tecnicoSuggestions.classList.add("hidden");
-      return;
-    }
+      const results = state.tecnicos
+        .filter(item => item.cod.includes(query) || item.tecnico.includes(query))
+        .slice(0, 20);
 
-    const results = state.tecnicos
-      .filter(item => item.cod.includes(query) || item.tecnico.includes(query))
-      .slice(0, 20);
-
-    renderSuggestions(
-      tecnicoSuggestions,
-      results,
-      item => `${item.cod} - ${item.tecnico}`,
-      item => {
+      renderSuggestions(tecnicoSuggestions, results, item => `${item.cod} - ${item.tecnico}`, item => {
         idTecnico.value = item.cod;
         nomeTecnico.value = item.tecnico;
         eps.value = item.eps;
@@ -674,27 +818,32 @@ function bindAutocomplete() {
         tecnicoSearch.value = `${item.cod} - ${item.tecnico}`;
         tecnicoSuggestions.classList.add("hidden");
         validateTecnicoSection();
+      });
+    });
+
+    tecnicoSearch.addEventListener("keydown", event => {
+      if (event.key === "Escape") {
+        tecnicoSearch.value = "";
+        idTecnico.value = "";
+        nomeTecnico.value = "";
+        eps.value = "";
+        lockField(idTecnico, false);
+        lockField(nomeTecnico, false);
+        validateTecnicoSection();
       }
-    );
-  });
+    });
+  }
 
-  municipioSearch.addEventListener("input", () => {
-    const query = toUpperTrim(municipioSearch.value);
+  if (municipioSearch) {
+    municipioSearch.addEventListener("input", () => {
+      const query = toUpperTrim(municipioSearch.value);
+      if (!query) return municipioSuggestions.classList.add("hidden");
 
-    if (!query) {
-      municipioSuggestions.classList.add("hidden");
-      return;
-    }
+      const results = state.municipios
+        .filter(item => item.municipio.includes(query))
+        .slice(0, 20);
 
-    const results = state.municipios
-      .filter(item => item.municipio.includes(query))
-      .slice(0, 20);
-
-    renderSuggestions(
-      municipioSuggestions,
-      results,
-      item => `${item.municipio} - ${item.uf}`,
-      item => {
+      renderSuggestions(municipioSuggestions, results, item => `${item.municipio} - ${item.uf}`, item => {
         municipio.value = item.municipio;
         uf.value = item.uf;
         lockField(municipio, true);
@@ -702,51 +851,48 @@ function bindAutocomplete() {
         municipioSearch.value = `${item.municipio} - ${item.uf}`;
         municipioSuggestions.classList.add("hidden");
         validateMunicipioSection();
+      });
+    });
+
+    municipioSearch.addEventListener("keydown", event => {
+      if (event.key === "Escape") {
+        municipioSearch.value = "";
+        municipio.value = "";
+        uf.value = "";
+        lockField(municipio, false);
+        lockField(uf, false);
+        validateMunicipioSection();
       }
-    );
-  });
+    });
+  }
 
-  causaSearch.addEventListener("input", () => {
-    const query = toUpperTrim(causaSearch.value);
+  if (causaSearch) {
+    causaSearch.addEventListener("input", () => {
+      const query = toUpperTrim(causaSearch.value);
+      if (!query) return causaSuggestions.classList.add("hidden");
 
-    if (!query) {
-      causaSuggestions.classList.add("hidden");
-      return;
-    }
+      const results = state.causas
+        .filter(item => item.causa.includes(query))
+        .slice(0, 20);
 
-    const results = state.causas
-      .filter(item => item.causa.includes(query))
-      .slice(0, 20);
-
-    renderSuggestions(
-      causaSuggestions,
-      results,
-      item => item.causa,
-      item => {
+      renderSuggestions(causaSuggestions, results, item => item.causa, item => {
         causaSearch.value = item.causa;
         causaSuggestions.classList.add("hidden");
         validateAtividadeSection();
-      }
-    );
-  });
+      });
+    });
+  }
 
-  materialSearch.addEventListener("input", () => {
-    const query = toUpperTrim(materialSearch.value);
+  if (materialSearch) {
+    materialSearch.addEventListener("input", () => {
+      const query = toUpperTrim(materialSearch.value);
+      if (!query) return materialSuggestions.classList.add("hidden");
 
-    if (!query) {
-      materialSuggestions.classList.add("hidden");
-      return;
-    }
+      const results = state.materiaisCatalogo
+        .filter(item => item.cod_material.includes(query) || item.nome_material.includes(query))
+        .slice(0, 20);
 
-    const results = state.materiaisCatalogo
-      .filter(item => item.cod_material.includes(query) || item.nome_material.includes(query))
-      .slice(0, 20);
-
-    renderSuggestions(
-      materialSuggestions,
-      results,
-      item => `${item.cod_material} - ${item.nome_material}`,
-      item => {
+      renderSuggestions(materialSuggestions, results, item => `${item.cod_material} - ${item.nome_material}`, item => {
         codMaterial.value = item.cod_material;
         nomeMaterial.value = item.nome_material;
         lockField(codMaterial, true);
@@ -754,43 +900,18 @@ function bindAutocomplete() {
         materialSearch.value = `${item.cod_material} - ${item.nome_material}`;
         materialSuggestions.classList.add("hidden");
         validateMaterialInputs();
+      });
+    });
+
+    materialSearch.addEventListener("keydown", event => {
+      if (event.key === "Escape") {
+        clearMaterialInputs();
       }
-    );
-  });
+    });
+  }
 
   document.addEventListener("click", event => {
-    if (!event.target.closest(".autocomplete-wrap")) {
-      clearAllSuggestions();
-    }
-  });
-
-  tecnicoSearch.addEventListener("keydown", event => {
-    if (event.key === "Escape") {
-      tecnicoSearch.value = "";
-      idTecnico.value = "";
-      nomeTecnico.value = "";
-      eps.value = "";
-      lockField(idTecnico, false);
-      lockField(nomeTecnico, false);
-      validateTecnicoSection();
-    }
-  });
-
-  municipioSearch.addEventListener("keydown", event => {
-    if (event.key === "Escape") {
-      municipioSearch.value = "";
-      municipio.value = "";
-      uf.value = "";
-      lockField(municipio, false);
-      lockField(uf, false);
-      validateMunicipioSection();
-    }
-  });
-
-  materialSearch.addEventListener("keydown", event => {
-    if (event.key === "Escape") {
-      clearMaterialInputs();
-    }
+    if (!event.target.closest(".autocomplete-wrap")) clearAllSuggestions();
   });
 }
 
@@ -821,7 +942,7 @@ function bindMasksAndValidation() {
   });
 
   ttk.addEventListener("input", () => {
-    applyTTKMask();
+    applyActivityMaskIfNeeded();
     validateAtividadeSection();
   });
 
@@ -848,20 +969,17 @@ function bindMasksAndValidation() {
 function bindMaterialActions() {
   addMaterialBtn.addEventListener("click", () => {
     hideAlert();
-
     codMaterial.value = toUpperTrim(codMaterial.value);
     nomeMaterial.value = toUpperTrim(nomeMaterial.value);
 
-    const valid = validateMaterialInputs();
-    if (!valid) return;
+    if (!validateMaterialInputs()) return;
 
-    const material = {
+    state.materiaisSelecionados.push({
       cod_material: codMaterial.value,
       nome_material: nomeMaterial.value,
       quantidade: Number(quantidade.value)
-    };
+    });
 
-    state.materiaisSelecionados.push(material);
     renderMaterialsTable();
     clearMaterialInputs();
     validateMaterialsCollection();
@@ -874,26 +992,57 @@ function bindActionButtons() {
     await sendToPowerAutomate();
   });
 
-  closeSuccessModalBtn.addEventListener("click", closeSuccessModalAndResetScreen);
-  confirmSuccessModalBtn.addEventListener("click", closeSuccessModalAndResetScreen);
-  modalBackdrop.addEventListener("click", closeSuccessModalAndResetScreen);
+  if (closeSuccessModalBtn) {
+    closeSuccessModalBtn.addEventListener("click", closeSuccessModalAndResetScreen);
+  }
+
+  if (confirmSuccessModalBtn) {
+    confirmSuccessModalBtn.addEventListener("click", closeSuccessModalAndResetScreen);
+  }
+
+  if (modalBackdrop) {
+    modalBackdrop.addEventListener("click", closeSuccessModalAndResetScreen);
+  }
 
   document.addEventListener("keydown", event => {
-    if (event.key === "Escape" && !successModal.classList.contains("hidden")) {
+    if (event.key === "Escape" && successModal && !successModal.classList.contains("hidden")) {
       closeSuccessModalAndResetScreen();
     }
   });
 }
 
+function bindTipoCadastroSelector() {
+  if (pageMode !== "seletor") {
+    if (formContent) formContent.classList.remove("hidden");
+    updateAtividadeMode();
+    return;
+  }
+
+  document.querySelectorAll('input[name="tipo_cadastro"]').forEach(radio => {
+    radio.addEventListener("change", () => {
+      if (formContent) formContent.classList.remove("hidden");
+      ttk.value = "";
+      updateAtividadeMode();
+      validateAtividadeSection();
+      hideAlert();
+    });
+  });
+
+  if (formContent) formContent.classList.add("hidden");
+  updateAtividadeMode();
+}
+
 async function init() {
   try {
     setThemeToggle();
+    bindTipoCadastroSelector();
     bindMasksAndValidation();
     bindAutocomplete();
     bindMaterialActions();
     bindActionButtons();
     renderMaterialsTable();
     await loadData();
+    hideAlert();
   } catch (error) {
     showAlert(`Erro ao carregar os dados iniciais.<br>${error.message}`, "error");
   }
